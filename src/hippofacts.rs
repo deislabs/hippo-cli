@@ -1,9 +1,15 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+// type FeatureMap = BTreeMap<String, BTreeMap<String, String>>;
+
+type AnnotationMap = BTreeMap<String, String>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct HippoFacts {
     pub bindle: BindleSpec,
+    pub annotations: Option<AnnotationMap>,
     pub files: std::collections::BTreeMap<String, Vec<String>>,
 }
 
@@ -41,6 +47,7 @@ mod test {
         "#).expect("error parsing test TOML");
         
         assert_eq!("weather", &facts.bindle.name);
+        assert_eq!(&None, &facts.annotations);
         assert_eq!(2, facts.files.get("server").expect("no server section").len());
         assert_eq!(3, facts.files.get("client").expect("no client section").len());
     }

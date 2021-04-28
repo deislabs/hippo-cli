@@ -1,9 +1,14 @@
 [package]
 name = "hippofactory"
 version = "0.1.0"
-authors = ["Ivan Towlson <github@hestia.cc>"]
+authors = ["Ivan Towlson <itowlson@microsoft.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0"
+clap = { version = "3.0.0-beta.2" }
+semver = { version = "0.11", features = ["serde"] }
+serde = {version = "1.0", features = ["derive"]}
+toml = "0.5"

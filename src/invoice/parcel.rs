@@ -15,29 +15,3 @@ pub struct Parcel {
     pub label: Label,
     pub conditions: Option<Condition>,
 }
-
-impl Parcel {
-    pub fn member_of(&self, group: &str) -> bool {
-        match &self.conditions {
-            Some(conditions) => match &conditions.member_of {
-                Some(groups) => groups.iter().any(|g| *g == group),
-                None => false,
-            },
-            None => false,
-        }
-    }
-    /// returns true if this parcel is a member of the "global" group (default).
-    ///
-    /// The spec says: "An implicit global group exists. It has no name, and includes
-    /// _only_ the parcels that are not assigned to any other group."
-    /// Therefore, if this returns true, it is a member of the "global" group.
-    pub fn is_global_group(&self) -> bool {
-        match &self.conditions {
-            Some(conditions) => match &conditions.member_of {
-                Some(groups) => groups.is_empty(),
-                None => true,
-            },
-            None => true,
-        }
-    }
-}

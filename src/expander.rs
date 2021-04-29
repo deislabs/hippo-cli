@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use glob::GlobError;
+use sha2::{Digest, Sha256};
 
 use crate::HippoFacts;
 use crate::invoice::{BindleSpec, Invoice, Label, Parcel};
@@ -39,11 +40,42 @@ fn expand_files_to_parcels(patterns: &Vec<String>) -> anyhow::Result<Vec<Parcel>
 
 fn expand_file_to_parcels(pattern: &String) -> anyhow::Result<Vec<Parcel>> {
     let paths = glob::glob(pattern)?;
-    paths.into_iter().map(expand_one_match_to_parcel).collect()
+    paths.into_iter().map(try_convert_one_match_to_parcel).collect()
 }
 
-fn expand_one_match_to_parcel(path: Result<PathBuf, GlobError>) -> anyhow::Result<Parcel> {
-    todo!("expand_one_match_to_parcel");
+fn try_convert_one_match_to_parcel(path: Result<PathBuf, GlobError>) -> anyhow::Result<Parcel> {
+    match path {
+        Err(e) => Err(anyhow::Error::new(e)),
+        Ok(path) => convert_one_match_to_parcel(path),
+    }
+}
+
+fn convert_one_match_to_parcel(path: PathBuf) -> anyhow::Result<Parcel> {
+    let mut file = std::fs::File::open(&path)?;
+
+    let name = path.to_str().ok_or(anyhow::Error::msg("Unable to stringise path"))?;
+    let size = file.metadata()?.len();
+
+    let mut sha = Sha256::new();
+    std::io::copy(&mut file, &mut sha)?;
+    let digest_value = sha.finalize();
+    let digest_string = format!("{:x}", digest_value);
+
+    let media_type =
+        mime_guess::from_path(&path)
+            .first_or_octet_stream()
+            .to_string();
+
+    Ok(Parcel {
+        label: Label {
+            name: name.to_owned(),
+            sha256: digest_string,
+            media_type,
+            size,
+            ..Label::default()
+        },
+        conditions: None,
+    })
 }
 
 fn flatten_or_fail<I, T>(source: I) -> anyhow::Result<Vec<T>>

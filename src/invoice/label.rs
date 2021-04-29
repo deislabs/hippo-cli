@@ -15,20 +15,20 @@ pub struct Label {
     pub media_type: String,
     pub name: String,
     pub size: u64,
+    pub origin: Option<String>,
     pub annotations: Option<AnnotationMap>,
     pub feature: Option<FeatureMap>,
-    pub origin: Option<String>,
 }
 
-impl Label {
-    pub fn new(name: String, sha256: String) -> Self {
-        Label {
-            name,
-            sha256,
-            ..Label::default()
-        }
-    }
-}
+// impl Label {
+//     pub fn new(name: String, sha256: String) -> Self {
+//         Label {
+//             name,
+//             sha256,
+//             ..Label::default()
+//         }
+//     }
+// }
 
 impl Default for Label {
     fn default() -> Self {

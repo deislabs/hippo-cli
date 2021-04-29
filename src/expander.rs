@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{PathBuf};
 
 use glob::GlobError;
 use sha2::{Digest, Sha256};
@@ -53,7 +53,11 @@ fn try_convert_one_match_to_parcel(path: Result<PathBuf, GlobError>) -> anyhow::
 fn convert_one_match_to_parcel(path: PathBuf) -> anyhow::Result<Parcel> {
     let mut file = std::fs::File::open(&path)?;
 
-    let name = path.to_str().ok_or(anyhow::Error::msg("Unable to stringise path"))?;
+    // TODO: We probably want this to be a relative path, first for bindle fidelity,
+    // and also so we can find the damn file when we go to upload things!
+    let name = path.file_name()
+                          .and_then(|osstr| osstr.to_str().map(|s| s.to_owned()))
+                          .ok_or(anyhow::Error::msg("Unable to stringise path"))?;
     let size = file.metadata()?.len();
 
     let mut sha = Sha256::new();
@@ -68,7 +72,7 @@ fn convert_one_match_to_parcel(path: PathBuf) -> anyhow::Result<Parcel> {
 
     Ok(Parcel {
         label: Label {
-            name: name.to_owned(),
+            name,
             sha256: digest_string,
             media_type,
             size,

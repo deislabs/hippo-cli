@@ -22,27 +22,6 @@ pub struct BindleSpec {
     pub authors: Option<Vec<String>>,
 }
 
-impl HippoFacts {
-    pub fn make_absolute_path(&self, relative_to: &std::path::Path) -> Self {
-        HippoFacts {
-            bindle: self.bindle.clone(),
-            annotations: self.annotations.clone(),
-            files: absolutise_patterns(&self.files, relative_to),
-        }
-    }
-}
-
-fn absolutise_patterns(files: &std::collections::BTreeMap<String, Vec<String>>, relative_to: &std::path::Path) -> std::collections::BTreeMap<String, Vec<String>> {
-    files.iter()
-         .map(|(k, vs)| (k.to_owned(), vs.iter().map(|v| absolutise_pattern(v, relative_to)).collect::<Vec<_>>()))
-         .collect()
-}
-
-fn absolutise_pattern(file: &String, relative_to: &std::path::Path) -> String {
-    let absolute = relative_to.join(file);
-    absolute.to_string_lossy().to_string()
-}
-
 #[cfg(test)]
 mod test {
     use super::*;

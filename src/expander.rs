@@ -1,4 +1,4 @@
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
 
 use glob::GlobError;
 use sha2::{Digest, Sha256};
@@ -6,8 +6,25 @@ use sha2::{Digest, Sha256};
 use crate::HippoFacts;
 use crate::invoice::{BindleSpec, Invoice, Label, Parcel};
 
-pub fn expand(hippofacts: HippoFacts) -> anyhow::Result<Invoice> {
-    let parcels = expand_all_files_to_parcels(&hippofacts)?;
+pub struct ExpansionContext {
+    pub relative_to: PathBuf,
+}
+
+impl ExpansionContext {
+    pub fn to_absolute(&self, pattern: &String) -> String {
+        let absolute = self.relative_to.join(pattern);
+        absolute.to_string_lossy().to_string()
+    }
+
+    pub fn to_relative(&self, path: impl AsRef<Path>) -> anyhow::Result<String> {
+        let relative_path = path.as_ref().strip_prefix(&self.relative_to)?;
+        let relative_path_string = relative_path.to_str().ok_or(anyhow::Error::msg("Can't convert back to relative path"))?.to_owned();
+        Ok(relative_path_string)
+    }
+}
+
+pub fn expand(hippofacts: HippoFacts, expansion_context: &ExpansionContext) -> anyhow::Result<Invoice> {
+    let parcels = expand_all_files_to_parcels(&hippofacts, expansion_context)?;
 
     let invoice = Invoice {
         bindle_version: "1.0.0".to_owned(),
@@ -26,38 +43,36 @@ pub fn expand(hippofacts: HippoFacts) -> anyhow::Result<Invoice> {
     Ok(invoice)
 }
 
-fn expand_all_files_to_parcels(hippofacts: &HippoFacts) -> anyhow::Result<Vec<Parcel>> {
-    let f = hippofacts.files.iter()
-              .map(|(_, v)| expand_files_to_parcels(&v));
-    flatten_or_fail(f)
+fn expand_all_files_to_parcels(hippofacts: &HippoFacts, expansion_context: &ExpansionContext) -> anyhow::Result<Vec<Parcel>> {
+    let parcels = hippofacts.files.iter()
+              .map(|(_, v)| expand_files_to_parcels(&v, expansion_context));
+    flatten_or_fail(parcels)
 }
 
-fn expand_files_to_parcels(patterns: &Vec<String>) -> anyhow::Result<Vec<Parcel>> {
-    let f = patterns.iter()
-            .map(expand_file_to_parcels);
-    flatten_or_fail(f)
+fn expand_files_to_parcels(patterns: &Vec<String>, expansion_context: &ExpansionContext) -> anyhow::Result<Vec<Parcel>> {
+    let parcels = patterns.iter()
+            .map(|f| expand_file_to_parcels(f, expansion_context));
+    flatten_or_fail(parcels)
 }
 
-fn expand_file_to_parcels(pattern: &String) -> anyhow::Result<Vec<Parcel>> {
-    let paths = glob::glob(pattern)?;
-    paths.into_iter().map(try_convert_one_match_to_parcel).collect()
+fn expand_file_to_parcels(pattern: &String, expansion_context: &ExpansionContext) -> anyhow::Result<Vec<Parcel>> {
+    let paths = glob::glob(&expansion_context.to_absolute(pattern))?;
+    paths.into_iter().map(|p| try_convert_one_match_to_parcel(p, expansion_context)).collect()
 }
 
-fn try_convert_one_match_to_parcel(path: Result<PathBuf, GlobError>) -> anyhow::Result<Parcel> {
+fn try_convert_one_match_to_parcel(path: Result<PathBuf, GlobError>, expansion_context: &ExpansionContext) -> anyhow::Result<Parcel> {
     match path {
         Err(e) => Err(anyhow::Error::new(e)),
-        Ok(path) => convert_one_match_to_parcel(path),
+        Ok(path) => convert_one_match_to_parcel(path, expansion_context),
     }
 }
 
-fn convert_one_match_to_parcel(path: PathBuf) -> anyhow::Result<Parcel> {
+fn convert_one_match_to_parcel(path: PathBuf, expansion_context: &ExpansionContext) -> anyhow::Result<Parcel> {
     let mut file = std::fs::File::open(&path)?;
 
     // TODO: We probably want this to be a relative path, first for bindle fidelity,
     // and also so we can find the damn file when we go to upload things!
-    let name = path.file_name()
-                          .and_then(|osstr| osstr.to_str().map(|s| s.to_owned()))
-                          .ok_or(anyhow::Error::msg("Unable to stringise path"))?;
+    let name = expansion_context.to_relative(&path)?;
     let size = file.metadata()?.len();
 
     let mut sha = Sha256::new();

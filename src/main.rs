@@ -1,3 +1,4 @@
+use expander::ExpansionContext;
 use hippofacts::HippoFacts;
 
 mod expander;
@@ -21,7 +22,8 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn run(source: impl AsRef<std::path::Path>, destination: impl AsRef<std::path::Path>) -> anyhow::Result<()> {
-    let source_dir = source.as_ref().parent().ok_or(anyhow::Error::msg("Can't establish source directory"))?;
+    let source_dir = source.as_ref().parent().ok_or(anyhow::Error::msg("Can't establish source directory"))?.to_path_buf();
+    let expansion_context = ExpansionContext{ relative_to: source_dir };
 
     // std::fs::read_to_string(source)
     //     .and_then(|s| toml::from_str(&s))
@@ -30,8 +32,8 @@ fn run(source: impl AsRef<std::path::Path>, destination: impl AsRef<std::path::P
     //     .and_then(|text| std::fs::write(destination, text))?;
 
     let content = std::fs::read_to_string(&source)?;
-    let spec = toml::from_str::<HippoFacts>(&content)?.make_absolute_path(source_dir);
-    let invoice = expander::expand(spec)?;
+    let spec = toml::from_str::<HippoFacts>(&content)?;
+    let invoice = expander::expand(spec, &expansion_context)?;
     let invoice_toml = toml::to_string_pretty(&invoice)?;
     std::fs::write(destination, invoice_toml)?;
     Ok(())

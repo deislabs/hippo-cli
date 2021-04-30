@@ -1,0 +1,11 @@
+[bindle]
+name = "weather"
+version = "1.2.3"
+
+[files]
+server = [
+    "out/*.wasm"
+]
+client = [
+    "scripts/*.js"
+]

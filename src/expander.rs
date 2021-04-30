@@ -127,12 +127,14 @@ fn flatten_or_fail<I, T>(source: I) -> anyhow::Result<Vec<T>>
 where
     I: IntoIterator<Item = anyhow::Result<Vec<T>>>,
 {
-    let (errs, oks): (Vec<_>, Vec<_>) = source.into_iter().partition(|v| v.is_err());
+    let mut result = vec![];
 
-    for e in errs.into_iter() {
-        return e;
+    for v in source {
+        match v {
+            Err(e) => return Err(e),
+            Ok(mut vals) => result.append(&mut vals),
+        }
     }
 
-    let elements = oks.into_iter().map(|v| v.unwrap()).flatten();
-    Ok(elements.collect())
+    Ok(result)
 }

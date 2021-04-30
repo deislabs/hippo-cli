@@ -21,9 +21,18 @@ fn main() -> anyhow::Result<()> {
     run(&source, &destination)
 }
 
-fn run(source: impl AsRef<std::path::Path>, destination: impl AsRef<std::path::Path>) -> anyhow::Result<()> {
-    let source_dir = source.as_ref().parent().ok_or(anyhow::Error::msg("Can't establish source directory"))?.to_path_buf();
-    let expansion_context = ExpansionContext{ relative_to: source_dir };
+fn run(
+    source: impl AsRef<std::path::Path>,
+    destination: impl AsRef<std::path::Path>,
+) -> anyhow::Result<()> {
+    let source_dir = source
+        .as_ref()
+        .parent()
+        .ok_or_else(|| anyhow::Error::msg("Can't establish source directory"))?
+        .to_path_buf();
+    let expansion_context = ExpansionContext {
+        relative_to: source_dir,
+    };
 
     // std::fs::read_to_string(source)
     //     .and_then(|s| toml::from_str(&s))

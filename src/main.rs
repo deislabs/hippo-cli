@@ -33,7 +33,7 @@ fn run(source: impl AsRef<std::path::Path>, destination: impl AsRef<std::path::P
 
     let content = std::fs::read_to_string(&source)?;
     let spec = toml::from_str::<HippoFacts>(&content)?;
-    let invoice = expander::expand(spec, &expansion_context)?;
+    let invoice = expander::expand(&spec, &expansion_context)?;
     let invoice_toml = toml::to_string_pretty(&invoice)?;
     std::fs::write(destination, invoice_toml)?;
     Ok(())

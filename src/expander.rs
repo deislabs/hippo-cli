@@ -23,7 +23,7 @@ impl ExpansionContext {
     }
 }
 
-pub fn expand(hippofacts: HippoFacts, expansion_context: &ExpansionContext) -> anyhow::Result<Invoice> {
+pub fn expand(hippofacts: &HippoFacts, expansion_context: &ExpansionContext) -> anyhow::Result<Invoice> {
     let parcels = expand_all_files_to_parcels(&hippofacts, expansion_context)?;
 
     let invoice = Invoice {

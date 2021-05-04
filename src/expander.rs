@@ -8,6 +8,7 @@ use crate::HippoFacts;
 
 pub struct ExpansionContext {
     pub relative_to: PathBuf,
+    pub invoice_versioning: InvoiceVersioning,
 }
 
 impl ExpansionContext {
@@ -20,9 +21,39 @@ impl ExpansionContext {
         let relative_path = path.as_ref().strip_prefix(&self.relative_to)?;
         let relative_path_string = relative_path
             .to_str()
-            .ok_or(anyhow::Error::msg("Can't convert back to relative path"))?
+            .ok_or_else(|| anyhow::Error::msg("Can't convert back to relative path"))?
             .to_owned();
         Ok(relative_path_string)
+    }
+
+    pub fn mangle_version(&self, version: &str) -> String {
+        match self.invoice_versioning {
+            InvoiceVersioning::Dev => {
+                let user = current_user()
+                    .map(|s| format!("-{}", s))
+                    .unwrap_or_else(|| "".to_owned());
+                let timestamp = chrono::Local::now()
+                    .format("-%Y.%m.%d.%H.%M.%S.%3f")
+                    .to_string();
+                format!("{}{}{}", version, user, timestamp)
+            }
+            InvoiceVersioning::Production => version.to_owned(),
+        }
+    }
+}
+
+pub enum InvoiceVersioning {
+    Dev,
+    Production,
+}
+
+impl InvoiceVersioning {
+    pub fn parse(text: &str) -> Self {
+        if text == "production" {
+            InvoiceVersioning::Production
+        } else {
+            InvoiceVersioning::Dev
+        }
     }
 }
 
@@ -37,7 +68,7 @@ pub fn expand(
         yanked: None,
         bindle: BindleSpec {
             name: hippofacts.bindle.name.clone(),
-            version: hippofacts.bindle.version.clone(), // TODO: mangle by default
+            version: expansion_context.mangle_version(&hippofacts.bindle.version),
             description: hippofacts.bindle.description.clone(),
             authors: hippofacts.bindle.authors.clone(),
         },
@@ -137,4 +168,10 @@ where
     }
 
     Ok(result)
+}
+
+fn current_user() -> Option<String> {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .ok()
 }

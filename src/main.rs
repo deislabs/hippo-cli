@@ -7,6 +7,7 @@ mod invoice;
 
 const ARG_HIPPOFACTS: &str = "hippofacts_path";
 const ARG_INVOICE: &str = "invoice_path";
+const ARG_VERSIONING: &str = "versioning";
 
 fn main() -> anyhow::Result<()> {
     let args = clap::App::new("hippofactory")
@@ -14,13 +15,16 @@ fn main() -> anyhow::Result<()> {
         .author("Deis Labs")
         .arg(clap::Arg::new(ARG_HIPPOFACTS).required(true).index(1).about("The artifacts spec"))
         .arg(clap::Arg::new(ARG_INVOICE).required(true).index(2).about("The invoice file to generate"))
+        .arg(clap::Arg::new(ARG_VERSIONING).possible_values(&["dev", "production"]).default_value("dev").required(false).short('v').long("invoice-version").about("How to version the generated invoice"))
         .get_matches();
 
     let hippofacts_arg = args.value_of(ARG_HIPPOFACTS).ok_or(anyhow::Error::msg("HIPPOFACTS file is required"))?;
     let invoice_arg = args.value_of(ARG_INVOICE).ok_or(anyhow::Error::msg("Invoice path is required"))?;
+    let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
 
     let source = std::env::current_dir()?.join(hippofacts_arg);
     let destination = std::env::current_dir()?.join(invoice_arg);
+    let _invoice_versioning = parse_versioning_arg(versioning_arg);
 
     run(&source, &destination)
 }
@@ -50,4 +54,17 @@ fn run(
     let invoice_toml = toml::to_string_pretty(&invoice)?;
     std::fs::write(destination, invoice_toml)?;
     Ok(())
+}
+
+enum InvoiceVersioning {
+    Dev,
+    Production,
+}
+
+fn parse_versioning_arg(text: &str) -> InvoiceVersioning {
+    if text == "production" {
+        InvoiceVersioning::Production
+    } else {
+        InvoiceVersioning::Dev
+    }
 }

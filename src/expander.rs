@@ -28,12 +28,15 @@ impl ExpansionContext {
 
     pub fn mangle_version(&self, version: &str) -> String {
         match self.invoice_versioning {
-            InvoiceVersioning::Dev => version.to_owned(),
+            InvoiceVersioning::Dev => {
+                let user = current_user().map(|s| format!("-{}", s)).unwrap_or("".to_owned());
+                let timestamp = chrono::Local::now().format("-%Y.%m.%d.%H.%M.%S.%3f").to_string();
+                format!("{}{}{}", version, user, timestamp)
+            },
             InvoiceVersioning::Production => version.to_owned(),
         }
     }
 }
-
 
 pub enum InvoiceVersioning {
     Dev,
@@ -161,4 +164,10 @@ where
     }
 
     Ok(result)
+}
+
+fn current_user() -> Option<String> {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .ok()
 }

@@ -13,13 +13,35 @@ fn main() -> anyhow::Result<()> {
     let args = clap::App::new("hippofactory")
         .version("0.0.1")
         .author("Deis Labs")
-        .arg(clap::Arg::new(ARG_HIPPOFACTS).required(true).index(1).about("The artifacts spec"))
-        .arg(clap::Arg::new(ARG_INVOICE).required(true).index(2).about("The invoice file to generate"))
-        .arg(clap::Arg::new(ARG_VERSIONING).possible_values(&["dev", "production"]).default_value("dev").required(false).short('v').long("invoice-version").about("How to version the generated invoice"))
+        .arg(
+            clap::Arg::new(ARG_HIPPOFACTS)
+                .required(true)
+                .index(1)
+                .about("The artifacts spec"),
+        )
+        .arg(
+            clap::Arg::new(ARG_INVOICE)
+                .required(true)
+                .index(2)
+                .about("The invoice file to generate"),
+        )
+        .arg(
+            clap::Arg::new(ARG_VERSIONING)
+                .possible_values(&["dev", "production"])
+                .default_value("dev")
+                .required(false)
+                .short('v')
+                .long("invoice-version")
+                .about("How to version the generated invoice"),
+        )
         .get_matches();
 
-    let hippofacts_arg = args.value_of(ARG_HIPPOFACTS).ok_or(anyhow::Error::msg("HIPPOFACTS file is required"))?;
-    let invoice_arg = args.value_of(ARG_INVOICE).ok_or(anyhow::Error::msg("Invoice path is required"))?;
+    let hippofacts_arg = args
+        .value_of(ARG_HIPPOFACTS)
+        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))?;
+    let invoice_arg = args
+        .value_of(ARG_INVOICE)
+        .ok_or_else(|| anyhow::Error::msg("Invoice path is required"))?;
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
 
     let source = std::env::current_dir()?.join(hippofacts_arg);

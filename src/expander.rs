@@ -21,7 +21,7 @@ impl ExpansionContext {
         let relative_path = path.as_ref().strip_prefix(&self.relative_to)?;
         let relative_path_string = relative_path
             .to_str()
-            .ok_or(anyhow::Error::msg("Can't convert back to relative path"))?
+            .ok_or_else(|| anyhow::Error::msg("Can't convert back to relative path"))?
             .to_owned();
         Ok(relative_path_string)
     }
@@ -29,10 +29,14 @@ impl ExpansionContext {
     pub fn mangle_version(&self, version: &str) -> String {
         match self.invoice_versioning {
             InvoiceVersioning::Dev => {
-                let user = current_user().map(|s| format!("-{}", s)).unwrap_or("".to_owned());
-                let timestamp = chrono::Local::now().format("-%Y.%m.%d.%H.%M.%S.%3f").to_string();
+                let user = current_user()
+                    .map(|s| format!("-{}", s))
+                    .unwrap_or_else(|| "".to_owned());
+                let timestamp = chrono::Local::now()
+                    .format("-%Y.%m.%d.%H.%M.%S.%3f")
+                    .to_string();
                 format!("{}{}{}", version, user, timestamp)
-            },
+            }
             InvoiceVersioning::Production => version.to_owned(),
         }
     }

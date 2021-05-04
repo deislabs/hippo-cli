@@ -8,6 +8,7 @@ use crate::HippoFacts;
 
 pub struct ExpansionContext {
     pub relative_to: PathBuf,
+    pub invoice_versioning: InvoiceVersioning,
 }
 
 impl ExpansionContext {
@@ -24,6 +25,29 @@ impl ExpansionContext {
             .to_owned();
         Ok(relative_path_string)
     }
+
+    pub fn mangle_version(&self, version: &str) -> String {
+        match self.invoice_versioning {
+            InvoiceVersioning::Dev => version.to_owned(),
+            InvoiceVersioning::Production => version.to_owned(),
+        }
+    }
+}
+
+
+pub enum InvoiceVersioning {
+    Dev,
+    Production,
+}
+
+impl InvoiceVersioning {
+    pub fn parse(text: &str) -> Self {
+        if text == "production" {
+            InvoiceVersioning::Production
+        } else {
+            InvoiceVersioning::Dev
+        }
+    }
 }
 
 pub fn expand(
@@ -37,7 +61,7 @@ pub fn expand(
         yanked: None,
         bindle: BindleSpec {
             name: hippofacts.bindle.name.clone(),
-            version: hippofacts.bindle.version.clone(), // TODO: mangle by default
+            version: expansion_context.mangle_version(&hippofacts.bindle.version),
             description: hippofacts.bindle.description.clone(),
             authors: hippofacts.bindle.authors.clone(),
         },

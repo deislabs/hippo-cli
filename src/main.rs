@@ -1,4 +1,4 @@
-use expander::ExpansionContext;
+use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::HippoFacts;
 
 mod expander;
@@ -24,14 +24,15 @@ fn main() -> anyhow::Result<()> {
 
     let source = std::env::current_dir()?.join(hippofacts_arg);
     let destination = std::env::current_dir()?.join(invoice_arg);
-    let _invoice_versioning = parse_versioning_arg(versioning_arg);
+    let invoice_versioning = InvoiceVersioning::parse(versioning_arg);
 
-    run(&source, &destination)
+    run(&source, &destination, invoice_versioning)
 }
 
 fn run(
     source: impl AsRef<std::path::Path>,
     destination: impl AsRef<std::path::Path>,
+    invoice_versioning: InvoiceVersioning,
 ) -> anyhow::Result<()> {
     let source_dir = source
         .as_ref()
@@ -40,6 +41,7 @@ fn run(
         .to_path_buf();
     let expansion_context = ExpansionContext {
         relative_to: source_dir,
+        invoice_versioning,
     };
 
     // std::fs::read_to_string(source)
@@ -54,17 +56,4 @@ fn run(
     let invoice_toml = toml::to_string_pretty(&invoice)?;
     std::fs::write(destination, invoice_toml)?;
     Ok(())
-}
-
-enum InvoiceVersioning {
-    Dev,
-    Production,
-}
-
-fn parse_versioning_arg(text: &str) -> InvoiceVersioning {
-    if text == "production" {
-        InvoiceVersioning::Production
-    } else {
-        InvoiceVersioning::Dev
-    }
 }

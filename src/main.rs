@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
 
     let source = std::env::current_dir()?.join(hippofacts_arg);
-    let destination = std::env::current_dir()?.join(invoice_arg);
+    let destination = std::env::current_dir()?.join(invoice_arg).canonicalize()?;
     let invoice_versioning = InvoiceVersioning::parse(versioning_arg);
 
     run(&source, &destination, invoice_versioning).await
@@ -65,15 +65,18 @@ async fn run(
         .ok_or_else(|| anyhow::Error::msg("Can't establish source directory"))?
         .to_path_buf();
     let expansion_context = ExpansionContext {
-        relative_to: source_dir,
+        relative_to: source_dir.clone(),
         invoice_versioning,
     };
-    let writer = BindleWriter::new(&source, &destination);
+    let writer = BindleWriter::new(&source_dir, &destination);
 
     let content = std::fs::read_to_string(&source)?;
     let spec = toml::from_str::<HippoFacts>(&content)?;
     let invoice = expander::expand(&spec, &expansion_context)?;
-    // let invoice_toml = toml::to_string_pretty(&invoice)?;
     writer.write(&invoice).await?;
+
+    println!("id:      {}/{}", &invoice.bindle.name, &invoice.bindle.version);
+    println!("command: bindle push -p {} {}/{}", &destination.as_ref().to_string_lossy(), &invoice.bindle.name, &invoice.bindle.version);
+
     Ok(())
 }

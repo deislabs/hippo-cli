@@ -14,8 +14,9 @@ const ARG_VERSIONING: &str = "versioning";
 #[async_std::main]
 async fn main() -> anyhow::Result<()> {
     let args = clap::App::new("hippofactory")
-        .version("0.0.1")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("Deis Labs")
+        .about("Expands Hippo artifacts files for upload to application storage")
         .arg(
             clap::Arg::new(ARG_HIPPOFACTS)
                 .required(true)

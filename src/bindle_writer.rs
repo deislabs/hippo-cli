@@ -22,7 +22,7 @@ impl BindleWriter {
         let bindle_id_hash = sha(&invoice.bindle.name, &invoice.bindle.version);
         let bindle_dir = self.dest_base_path.join(bindle_id_hash);
         let parcels_dir = bindle_dir.join("parcels");
-        async_std::fs::create_dir_all(&parcels_dir).await?;
+        tokio::fs::create_dir_all(&parcels_dir).await?;
 
         self.write_invoice_file(invoice, &bindle_dir).await?;
         self.write_parcel_files(invoice, &parcels_dir).await?;
@@ -32,7 +32,7 @@ impl BindleWriter {
     async fn write_invoice_file(&self, invoice: &Invoice, bindle_dir: &PathBuf) -> anyhow::Result<()> {
         let invoice_text = toml::to_string_pretty(&invoice)?;
         let invoice_file = bindle_dir.join("invoice.toml");
-        async_std::fs::write(&invoice_file, &invoice_text).await?;
+        tokio::fs::write(&invoice_file, &invoice_text).await?;
         Ok(())
     }
 
@@ -51,7 +51,7 @@ impl BindleWriter {
         let source_file = self.source_base_path.join(&parcel.label.name);
         let hash = &parcel.label.sha256;
         let dest_file = parcels_dir.join(format!("{}.dat", hash));
-        async_std::fs::copy(&source_file, &dest_file).await?;
+        tokio::fs::copy(&source_file, &dest_file).await?;
         Ok(())
     }
 }

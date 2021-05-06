@@ -12,7 +12,7 @@ const ARG_HIPPOFACTS: &str = "hippofacts_path";
 const ARG_STAGING_DIR: &str = "staging_dir";
 const ARG_VERSIONING: &str = "versioning";
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = clap::App::new("hippofactory")
         .version(env!("CARGO_PKG_VERSION"))
@@ -61,7 +61,7 @@ async fn run(
     destination: impl AsRef<std::path::Path>,
     invoice_versioning: InvoiceVersioning,
 ) -> anyhow::Result<()> {
-    let bindle_server_url = "http://localhost:14044/v1";
+    let bindle_server_url = "http://localhost:8080/v1";
     let source_dir = source
         .as_ref()
         .parent()
@@ -79,8 +79,7 @@ async fn run(
     writer.write(&invoice).await?;
     bindle_pusher::push_all(&destination, invoice.id()?, bindle_server_url).await?;
 
-    println!("id:      {}/{}", &invoice.bindle.name, &invoice.bindle.version);
-    println!("command: bindle push -p {} {}/{}", &destination.as_ref().to_string_lossy(), &invoice.bindle.name, &invoice.bindle.version);
+    println!("pushed: {}/{}", &invoice.bindle.name, &invoice.bindle.version);
 
     Ok(())
 }

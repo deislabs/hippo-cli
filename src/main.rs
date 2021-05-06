@@ -2,6 +2,7 @@ use bindle_writer::BindleWriter;
 use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::HippoFacts;
 
+mod bindle_pusher;
 mod bindle_writer;
 mod expander;
 mod hippofacts;
@@ -60,6 +61,7 @@ async fn run(
     destination: impl AsRef<std::path::Path>,
     invoice_versioning: InvoiceVersioning,
 ) -> anyhow::Result<()> {
+    let bindle_server_url = "http://localhost:14044/v1";
     let source_dir = source
         .as_ref()
         .parent()
@@ -75,6 +77,7 @@ async fn run(
     let spec = toml::from_str::<HippoFacts>(&content)?;
     let invoice = expander::expand(&spec, &expansion_context)?;
     writer.write(&invoice).await?;
+    bindle_pusher::push_all(&destination, invoice.id()?, bindle_server_url).await?;
 
     println!("id:      {}/{}", &invoice.bindle.name, &invoice.bindle.version);
     println!("command: bindle push -p {} {}/{}", &destination.as_ref().to_string_lossy(), &invoice.bindle.name, &invoice.bindle.version);

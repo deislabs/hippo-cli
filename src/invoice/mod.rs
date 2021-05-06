@@ -2,7 +2,7 @@
 //! as `Parcel`s and `Label`s)
 //!
 //! ***NOTE:*** Ideally this folder should be replaced with a reference the 'bindle' crate but
-//! that doesn't work on WSL at the moment.
+//! that doesn't work on WSL at the moment.  (TODO: might be able to get rid of now?)
 
 mod bindle_spec;
 mod condition;
@@ -23,7 +23,7 @@ pub use parcel::Parcel;
 
 use serde::{Deserialize, Serialize};
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, convert::TryFrom};
 
 /// Alias for feature map in an Invoice's parcel
 pub type FeatureMap = BTreeMap<String, BTreeMap<String, String>>;
@@ -48,4 +48,11 @@ pub struct Invoice {
     pub annotations: Option<AnnotationMap>,
     pub parcel: Option<Vec<Parcel>>,
     pub group: Option<Vec<Group>>,
+}
+
+impl Invoice {
+    pub fn id(&self) -> anyhow::Result<bindle::Id> {
+        let id = bindle::Id::try_from(format!("{}/{}", &self.bindle.name, &self.bindle.version))?;
+        Ok(id)
+    }
 }

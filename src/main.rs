@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
 
     let source = std::env::current_dir()?.join(hippofacts_arg);
-    let destination = std::env::current_dir()?.join(invoice_arg).canonicalize()?;
+    let destination = std::env::current_dir()?.join(invoice_arg);
     let invoice_versioning = InvoiceVersioning::parse(versioning_arg);
 
     run(&source, &destination, invoice_versioning).await

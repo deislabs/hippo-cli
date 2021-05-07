@@ -16,7 +16,7 @@ const ARG_PREPARE_ONLY: &str = "prepare";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = clap::App::new("hippofactory")
+    let args = clap::App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author("Deis Labs")
         .about("Expands Hippo artifacts files for upload to application storage")

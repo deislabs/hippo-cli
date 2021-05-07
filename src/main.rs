@@ -24,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
             clap::Arg::new(ARG_HIPPOFACTS)
                 .required(true)
                 .index(1)
-                .about("The artifacts spec"),
+                .about("The artifacts spec (file or directory containing HIPPOFACTS file)"),
         )
         .arg(
             clap::Arg::new(ARG_STAGING_DIR)
@@ -74,7 +74,16 @@ async fn main() -> anyhow::Result<()> {
             Some(args.value_of(ARG_SERVER_URL).ok_or_else(|| anyhow::Error::msg("Server URL is required"))?.to_owned())
         };
 
-    let source = std::env::current_dir()?.join(hippofacts_arg);
+    let source_file_or_dir = std::env::current_dir()?.join(hippofacts_arg);
+    let source = if source_file_or_dir.is_file() {
+        source_file_or_dir
+    } else {
+        source_file_or_dir.join("HIPPOFACTS")
+    };
+    if !source.exists() {
+        return Err(anyhow::anyhow!("Artifacts spec not found: file {} does not exist", source.to_string_lossy()));
+    }
+
     let destination = match staging_dir_arg {
         Some(dir) => std::env::current_dir()?.join(dir),
         None => std::env::temp_dir().join("hippo-staging"),  // TODO: make unpredictable?

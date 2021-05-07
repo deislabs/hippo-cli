@@ -4,6 +4,11 @@ The `hippofactory` tool processes an application's `HIPPOFACTS` (Hippo
 artifacts) file and generates a standalone Bindle that can be uploaded
 using `bindle push`.
 
+## Building from source
+
+* Known link failure on WSL: workaround is to build once with `RUSTFLAGS='-C opt-level=0' cargo build`
+(after which plain `cargo build` seems to work)
+
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a

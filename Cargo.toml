@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
-async-std = { version = "1.9.0", features = ["attributes"] }
+bindle = { version = "0.3.1", default-features = false, features = ["client"] }
 chrono = "0.4"
 clap = { version = "3.0.0-beta.2" }
 futures = "0.3.14"
@@ -17,4 +17,5 @@ mime_guess = { version = "2.0" }
 semver = { version = "0.11", features = ["serde"] }
 serde = {version = "1.0", features = ["derive"]}
 sha2 = "0.9"
+tokio = "1.5.0"
 toml = "0.5"

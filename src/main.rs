@@ -9,7 +9,7 @@ mod hippofacts;
 mod invoice;
 
 const ARG_HIPPOFACTS: &str = "hippofacts_path";
-const ARG_STAGING_DIR: &str = "staging_dir";
+const ARG_STAGING_DIR: &str = "output_dir";
 const ARG_VERSIONING: &str = "versioning";
 const ARG_SERVER_URL: &str = "bindle_server";
 const ARG_PREPARE_ONLY: &str = "prepare";
@@ -28,9 +28,11 @@ async fn main() -> anyhow::Result<()> {
         )
         .arg(
             clap::Arg::new(ARG_STAGING_DIR)
-                .required(true)
-                .index(2)
-                .about("The path to stage the artifacts to"),
+                .required(false)
+                .takes_value(true)
+                .short('o')
+                .long("output")
+                .about("The path to output the artifacts to (required with --prepare, otherwise uses a temporary directory)"),
         )
         .arg(
             clap::Arg::new(ARG_VERSIONING)
@@ -52,18 +54,18 @@ async fn main() -> anyhow::Result<()> {
         .arg(
             clap::Arg::new(ARG_PREPARE_ONLY)
                 .required(false)
+                .requires(ARG_STAGING_DIR)
                 .takes_value(false)
                 .long("prepare")
-                .about("Prepares an artifact layout but does not push"),
+                .about("Prepares an artifact layout in <output_dir> but does not push"),
         )
         .get_matches();
 
     let hippofacts_arg = args
         .value_of(ARG_HIPPOFACTS)
         .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))?;
-    let invoice_arg = args
-        .value_of(ARG_STAGING_DIR)
-        .ok_or_else(|| anyhow::Error::msg("Staging directory is required"))?;
+    let staging_dir_arg = args
+        .value_of(ARG_STAGING_DIR);
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
     let push_to =
         if args.is_present(ARG_PREPARE_ONLY) {
@@ -73,7 +75,10 @@ async fn main() -> anyhow::Result<()> {
         };
 
     let source = std::env::current_dir()?.join(hippofacts_arg);
-    let destination = std::env::current_dir()?.join(invoice_arg);
+    let destination = match staging_dir_arg {
+        Some(dir) => std::env::current_dir()?.join(dir),
+        None => std::env::temp_dir().join("hippo-staging"),  // TODO: make unpredictable?
+    };
     let invoice_versioning = InvoiceVersioning::parse(versioning_arg);
 
     run(&source, &destination, invoice_versioning, push_to).await

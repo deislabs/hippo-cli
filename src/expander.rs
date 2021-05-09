@@ -1,9 +1,10 @@
+use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
+use bindle::{BindleSpec, Invoice, Label, Parcel};
 use glob::GlobError;
 use sha2::{Digest, Sha256};
 
-use crate::invoice::{BindleSpec, Invoice, Label, Parcel};
 use crate::HippoFacts;
 
 pub struct ExpansionContext {
@@ -67,17 +68,27 @@ pub fn expand(
         bindle_version: "1.0.0".to_owned(),
         yanked: None,
         bindle: BindleSpec {
-            name: hippofacts.bindle.name.clone(),
-            version: expansion_context.mangle_version(&hippofacts.bindle.version),
+            id: expand_id(&hippofacts.bindle, expansion_context)?,
             description: hippofacts.bindle.description.clone(),
             authors: hippofacts.bindle.authors.clone(),
         },
         annotations: hippofacts.annotations.clone(),
         parcel: Some(parcels),
         group: None,
+        signature: None,
     };
 
     Ok(invoice)
+}
+
+fn expand_id(
+    bindle_spec: &crate::hippofacts::BindleSpec,
+    expansion_context: &ExpansionContext,
+) -> anyhow::Result<bindle::Id> {
+    let name = bindle_spec.name.clone();
+    let version = expansion_context.mangle_version(&bindle_spec.version);
+    let id = bindle::Id::try_from(format!("{}/{}", &name, &version))?;
+    Ok(id)
 }
 
 fn expand_all_files_to_parcels(

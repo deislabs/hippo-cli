@@ -6,7 +6,6 @@ mod bindle_pusher;
 mod bindle_writer;
 mod expander;
 mod hippofacts;
-mod invoice;
 
 const ARG_HIPPOFACTS: &str = "hippofacts_path";
 const ARG_STAGING_DIR: &str = "output_dir";
@@ -116,11 +115,11 @@ async fn run(
     writer.write(&invoice).await?;
 
     if let Some(url) = push_to {
-        bindle_pusher::push_all(&destination, invoice.id()?, &url).await?;
-        println!("pushed: {}/{}", &invoice.bindle.name, &invoice.bindle.version);
+        bindle_pusher::push_all(&destination, &invoice.bindle.id, &url).await?;
+        println!("pushed: {}", &invoice.bindle.id);
     } else {
-        println!("id:      {}/{}", &invoice.bindle.name, &invoice.bindle.version);
-        println!("command: bindle push -p {} {}/{}", &destination.as_ref().canonicalize()?.to_string_lossy(), &invoice.bindle.name, &invoice.bindle.version);
+        println!("id:      {}", &invoice.bindle.id);
+        println!("command: bindle push -p {} {}", &destination.as_ref().canonicalize()?.to_string_lossy(), &invoice.bindle.id);
     }
 
     Ok(())

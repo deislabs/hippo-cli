@@ -1,8 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use sha2::{Digest, Sha256};
-
-use crate::invoice::{Invoice, Parcel};
+use bindle::{Invoice, Parcel};
 
 pub struct BindleWriter {
     source_base_path: PathBuf,
@@ -19,7 +17,7 @@ impl BindleWriter {
 
     pub async fn write(&self, invoice: &Invoice) -> anyhow::Result<()> {
         // This is very similar to bindle::StandaloneWrite::write but... not quite the same
-        let bindle_id_hash = sha(&invoice.bindle.name, &invoice.bindle.version);
+        let bindle_id_hash = invoice.bindle.id.sha();
         let bindle_dir = self.dest_base_path.join(bindle_id_hash);
         let parcels_dir = bindle_dir.join("parcels");
         tokio::fs::create_dir_all(&parcels_dir).await?;
@@ -54,13 +52,4 @@ impl BindleWriter {
         tokio::fs::copy(&source_file, &dest_file).await?;
         Ok(())
     }
-}
-
-fn sha(name: &str, version: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(name);
-    hasher.update("/");
-    hasher.update(version);
-    let result = hasher.finalize();
-    format!("{:x}", result)
 }

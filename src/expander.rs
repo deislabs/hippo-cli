@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use bindle::{BindleSpec, Condition, Group, Invoice, Label, Parcel};
 use glob::GlobError;
+use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
 use crate::{HippoFacts, hippofacts::Handler};
@@ -194,35 +195,37 @@ fn convert_one_match_to_parcel(
 }
 
 fn merge_memberships(parcels: Vec<Parcel>) -> Vec<Parcel> {
-    let mut merged = vec![];
-    for parcel in parcels {
-        merge_parcel_into(&mut merged, parcel);
-    }
-    merged
+    parcels.into_iter()
+           .into_grouping_map_by(|p| p.label.sha256.clone())
+           .fold_first(|acc, _key, val| merge_parcel_into(acc, val))
+           .values()
+           .map(|p| p.clone())  // into_values is not yet stable
+           .collect()
 }
 
-fn merge_parcel_into(parcels: &mut Vec<Parcel>, parcel: Parcel) {
-    match parcels.into_iter().find(|p| p.label.sha256 == parcel.label.sha256).as_mut() {
-        None => parcels.push(parcel),
-        Some(prior_parcel) => append_membership(prior_parcel, &parcel),
+fn merge_parcel_into(first: Parcel, second: Parcel) -> Parcel {
+    Parcel {
+        label: first.label,
+        conditions: merge_parcel_conditions(first.conditions, second.conditions)
     }
 }
 
-fn append_membership(prior_parcel: &mut Parcel, parcel: &Parcel) {
-    prior_parcel.conditions = match prior_parcel.conditions.as_mut() {
-        None => parcel.conditions.clone(), // shouldn't happen
-        Some(condition) =>
-            match &parcel.conditions {
-                None => prior_parcel.conditions.clone(),
-                Some(c) => Some(merge_conditions(condition.clone(), c.clone())),
+fn merge_parcel_conditions(first: Option<Condition>, second: Option<Condition>) -> Option<Condition> {
+    match first {
+        None => second, // shouldn't happen
+        Some(first_condition) =>
+            match second {
+                None => Some(first_condition),
+                Some(second_condition) =>
+                    Some(merge_condition_lists(first_condition.clone(), second_condition.clone())),
             }
     }
 }
 
-fn merge_conditions(condition: Condition, to_merge: Condition) -> Condition {
+fn merge_condition_lists(first: Condition, second: Condition) -> Condition {
     Condition {
-        member_of: merge_lists(condition.member_of, to_merge.member_of),
-        requires: condition.requires,
+        member_of: merge_lists(first.member_of, second.member_of),
+        requires: first.requires,
     }
 }
 

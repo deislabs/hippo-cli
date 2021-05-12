@@ -123,6 +123,7 @@ fn expand_files_to_parcels(
     handler: &Handler,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
+    // TODO: the handler file parcel needs a label.requires of the group
     let patterns: Vec<String> = match &handler.files {
         None => vec![handler.name.clone()],
         Some(files) => [vec![handler.name.clone()], files.clone()].concat(),
@@ -258,4 +259,39 @@ fn current_user() -> Option<String> {
 
 fn no_handlers() -> anyhow::Error {
     anyhow::anyhow!("No handlers defined in artifact spec")
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use super::*;
+
+    fn test_dir(name: &str) -> PathBuf {
+        let test_data_base = PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap().join("testdata");
+        test_data_base.join(name)
+    }
+
+    fn read_hippofacts(path: impl AsRef<Path>) -> anyhow::Result<HippoFacts> {
+        let toml_text = std::fs::read_to_string(path)?;
+        let hippofacts: HippoFacts = toml::from_str(&toml_text)?;
+        Ok(hippofacts)
+    }
+
+    fn parcel_named<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Parcel {
+        invoice.parcel.as_ref().unwrap().iter().find(|p| p.label.name == parcel_name).unwrap()
+    }
+
+    #[test]
+    fn test_expansion() {
+        // TODO: this is a bad test - embetteren it
+        let app1_dir = test_dir("app1");
+        let hippofacts = read_hippofacts(app1_dir.join("HIPPOFACTS")).unwrap();
+        let expansion_context = ExpansionContext { relative_to: app1_dir, invoice_versioning: InvoiceVersioning::Production };
+        let invoice = expand(&hippofacts, &expansion_context).expect("error expanding");
+        assert_eq!(hippofacts.bindle.name, invoice.bindle.id.name());
+        assert_eq!(2, invoice.group.as_ref().unwrap().len());
+        assert_eq!(1, parcel_named(&invoice, "scripts/ignore.json").conditions.as_ref().unwrap().member_of.as_ref().unwrap().len());
+        assert_eq!(2, parcel_named(&invoice, "scripts/real.js").conditions.as_ref().unwrap().member_of.as_ref().unwrap().len());
+    }
 }

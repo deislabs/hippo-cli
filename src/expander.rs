@@ -1,11 +1,11 @@
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
-use bindle::{BindleSpec, Invoice, Label, Parcel};
+use bindle::{BindleSpec, Condition, Group, Invoice, Label, Parcel};
 use glob::GlobError;
 use sha2::{Digest, Sha256};
 
-use crate::HippoFacts;
+use crate::{HippoFacts, hippofacts::Handler};
 
 pub struct ExpansionContext {
     pub relative_to: PathBuf,
@@ -62,6 +62,7 @@ pub fn expand(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Invoice> {
+    let groups = expand_all_handlers_to_groups(&hippofacts)?;
     let parcels = expand_all_files_to_parcels(&hippofacts, expansion_context)?;
 
     let invoice = Invoice {
@@ -74,7 +75,7 @@ pub fn expand(
         },
         annotations: hippofacts.annotations.clone(),
         parcel: Some(parcels),
-        group: None,
+        group: Some(groups),
         signature: None,
     };
 
@@ -91,51 +92,74 @@ fn expand_id(
     Ok(id)
 }
 
+fn expand_all_handlers_to_groups(hippofacts: &HippoFacts) -> anyhow::Result<Vec<Group>> {
+    let groups = hippofacts.handler.as_ref().ok_or_else(no_handlers)?.iter().map(expand_to_group).collect();
+    Ok(groups)
+}
+
+fn expand_to_group(handler: &Handler) -> Group {
+    Group {
+        name: group_name(handler),
+        required: None,
+        satisfied_by: None,
+    }
+}
+
+fn group_name(handler: &Handler) -> String {
+    format!("{}-files", handler.name)
+}
+
 fn expand_all_files_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let parcels = hippofacts
-        .files
-        .iter()
-        .map(|(_, v)| expand_files_to_parcels(&v, expansion_context));
-    flatten_or_fail(parcels)
+    let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
+    let parcel_lists = handlers.iter().map(|handler| expand_files_to_parcels(handler, expansion_context));
+    let parcels = flatten_or_fail(parcel_lists)?;
+    Ok(merge_memberships(parcels))
 }
 
 fn expand_files_to_parcels(
-    patterns: &[String],
+    handler: &Handler,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
+    let patterns: Vec<String> = match &handler.files {
+        None => vec![handler.name.clone()],
+        Some(files) => [vec![handler.name.clone()], files.clone()].concat(),
+    };
     let parcels = patterns
         .iter()
-        .map(|f| expand_file_to_parcels(f, expansion_context));
+        .map(|f| expand_file_to_parcels(f, expansion_context, &group_name(handler)));
     flatten_or_fail(parcels)
 }
 
 fn expand_file_to_parcels(
     pattern: &str,
     expansion_context: &ExpansionContext,
+    member_of: &str,
 ) -> anyhow::Result<Vec<Parcel>> {
     let paths = glob::glob(&expansion_context.to_absolute(pattern))?;
     paths
         .into_iter()
-        .map(|p| try_convert_one_match_to_parcel(p, expansion_context))
+        .map(|p| try_convert_one_match_to_parcel(p, expansion_context, member_of))
         .collect()
 }
 
 fn try_convert_one_match_to_parcel(
     path: Result<PathBuf, GlobError>,
     expansion_context: &ExpansionContext,
+    member_of: &str
 ) -> anyhow::Result<Parcel> {
     match path {
         Err(e) => Err(anyhow::Error::new(e)),
-        Ok(path) => convert_one_match_to_parcel(path, expansion_context),
+        Ok(path) => convert_one_match_to_parcel(path, expansion_context, member_of),
     }
 }
 
 fn convert_one_match_to_parcel(
     path: PathBuf,
     expansion_context: &ExpansionContext,
+    member_of: &str
 ) -> anyhow::Result<Parcel> {
     let mut file = std::fs::File::open(&path)?;
 
@@ -161,8 +185,53 @@ fn convert_one_match_to_parcel(
             size,
             ..Label::default()
         },
-        conditions: None,
+        conditions: Some(Condition {
+            member_of: Some(vec![member_of.to_owned()]),
+            requires: None
+        }),
     })
+}
+
+fn merge_memberships(parcels: Vec<Parcel>) -> Vec<Parcel> {
+    let mut merged = vec![];
+    for parcel in parcels {
+        merge_parcel_into(&mut merged, parcel);
+    }
+    merged
+}
+
+fn merge_parcel_into(parcels: &mut Vec<Parcel>, parcel: Parcel) {
+    match parcels.into_iter().find(|p| p.label.sha256 == parcel.label.sha256).as_mut() {
+        None => parcels.push(parcel),
+        Some(prior_parcel) => append_membership(prior_parcel, &parcel),
+    }
+}
+
+fn append_membership(prior_parcel: &mut Parcel, parcel: &Parcel) {
+    prior_parcel.conditions = match prior_parcel.conditions.as_mut() {
+        None => parcel.conditions.clone(), // shouldn't happen
+        Some(condition) =>
+            match &parcel.conditions {
+                None => prior_parcel.conditions.clone(),
+                Some(c) => Some(merge_conditions(condition.clone(), c.clone())),
+            }
+    }
+}
+
+fn merge_conditions(condition: Condition, to_merge: Condition) -> Condition {
+    Condition {
+        member_of: merge_lists(condition.member_of, to_merge.member_of),
+        requires: condition.requires,
+    }
+}
+
+fn merge_lists(first: Option<Vec<String>>, second: Option<Vec<String>>) -> Option<Vec<String>> {
+    match (first, second) {
+        (None, None) => None,
+        (some, None) => some,
+        (None, some) => some,
+        (Some(list1), Some(list2)) => Some(vec![list1, list2].concat()),
+    }
 }
 
 fn flatten_or_fail<I, T>(source: I) -> anyhow::Result<Vec<T>>
@@ -185,4 +254,8 @@ fn current_user() -> Option<String> {
     std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .ok()
+}
+
+fn no_handlers() -> anyhow::Error {
+    anyhow::anyhow!("No handlers defined in artifact spec")
 }

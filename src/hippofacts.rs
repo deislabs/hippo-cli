@@ -10,7 +10,7 @@ type AnnotationMap = BTreeMap<String, String>;
 pub struct HippoFacts {
     pub bindle: BindleSpec,
     pub annotations: Option<AnnotationMap>,
-    pub files: std::collections::BTreeMap<String, Vec<String>>,
+    pub handler: Option<Vec<Handler>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -20,6 +20,14 @@ pub struct BindleSpec {
     pub version: String, // not semver::Version because this could be a template
     pub description: Option<String>,
     pub authors: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Handler {
+    pub name: String,
+    pub route: String,
+    pub files: Option<Vec<String>>,
 }
 
 #[cfg(test)]
@@ -32,32 +40,35 @@ mod test {
             r#"
         # HIPPO FACT: the North American house hippo is found across Canada and the Eastern US
         [bindle]
-        name = "weather"
+        name = "birds"
         version = "1.2.4"
 
-        [files]
-        server = [
-            "*.wasm",
-            "gadget.jsx"
-        ]
-        client = [
-            "images/*",
-            "scripts/*.js",
-            "css/*.css"
-        ]
+        [[handler]]
+        name = "penguin.wasm"
+        route = "/birds/flightless"
+        files = ["adelie.png", "rockhopper.png", "*.jpg"]
+
+        [[handler]]
+        name = "cassowary.wasm"
+        route = "/birds/savage/rending"
         "#,
         )
         .expect("error parsing test TOML");
 
-        assert_eq!("weather", &facts.bindle.name);
+        assert_eq!("birds", &facts.bindle.name);
         assert_eq!(&None, &facts.annotations);
-        assert_eq!(
-            2,
-            facts.files.get("server").expect("no server section").len()
-        );
-        assert_eq!(
-            3,
-            facts.files.get("client").expect("no client section").len()
-        );
+
+        let handlers = &facts.handler.expect("Expected handlers");
+
+        assert_eq!(2, handlers.len());
+
+        assert_eq!("penguin.wasm", &handlers[0].name);
+        assert_eq!("/birds/flightless", &handlers[0].route);
+        let files0 = handlers[0].files.as_ref().expect("Expected files");
+        assert_eq!(3, files0.len());
+
+        assert_eq!("cassowary.wasm", &handlers[1].name);
+        assert_eq!("/birds/savage/rending", &handlers[1].route);
+        assert_eq!(None, handlers[1].files);
     }
 }

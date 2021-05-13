@@ -24,7 +24,8 @@ impl ExpansionContext {
         let relative_path_string = relative_path
             .to_str()
             .ok_or_else(|| anyhow::Error::msg("Can't convert back to relative path"))?
-            .to_owned();
+            .to_owned()
+            .replace("\\", "/");  // TODO: a better way
         Ok(relative_path_string)
     }
 

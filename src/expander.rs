@@ -64,7 +64,9 @@ pub fn expand(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Invoice> {
     let groups = expand_all_handlers_to_groups(&hippofacts)?;
-    let parcels = expand_all_files_to_parcels(&hippofacts, expansion_context)?;
+    let handler_parcels = expand_handler_modules_to_parcels(&hippofacts, expansion_context)?;
+    let file_parcels = expand_all_files_to_parcels(&hippofacts, expansion_context)?;
+    let parcels = handler_parcels.into_iter().chain(file_parcels).collect();
 
     let invoice = Invoice {
         bindle_version: "1.0.0".to_owned(),
@@ -116,6 +118,15 @@ fn group_name(handler: &Handler) -> String {
     format!("{}-files", handler.name)
 }
 
+fn expand_handler_modules_to_parcels(
+    hippofacts: &HippoFacts,
+    expansion_context: &ExpansionContext,
+) -> anyhow::Result<Vec<Parcel>> {
+    let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
+    let parcels = handlers.iter().map(|handler| convert_one_match_to_parcel(PathBuf::from(expansion_context.to_absolute(&handler.name)), expansion_context, None, Some(&group_name(handler))));
+    parcels.collect()
+}
+
 fn expand_all_files_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
@@ -132,10 +143,9 @@ fn expand_files_to_parcels(
     handler: &Handler,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    // TODO: the handler file parcel needs a label.requires of the group
     let patterns: Vec<String> = match &handler.files {
-        None => vec![handler.name.clone()],
-        Some(files) => [vec![handler.name.clone()], files.clone()].concat(),
+        None => vec![],
+        Some(files) => files.clone(),
     };
     let parcels = patterns
         .iter()
@@ -162,14 +172,15 @@ fn try_convert_one_match_to_parcel(
 ) -> anyhow::Result<Parcel> {
     match path {
         Err(e) => Err(anyhow::Error::new(e)),
-        Ok(path) => convert_one_match_to_parcel(path, expansion_context, member_of),
+        Ok(path) => convert_one_match_to_parcel(path, expansion_context, Some(member_of), None),
     }
 }
 
 fn convert_one_match_to_parcel(
     path: PathBuf,
     expansion_context: &ExpansionContext,
-    member_of: &str,
+    member_of: Option<&str>,
+    requires: Option<&str>,
 ) -> anyhow::Result<Parcel> {
     let mut file = std::fs::File::open(&path)?;
 
@@ -194,8 +205,8 @@ fn convert_one_match_to_parcel(
             ..Label::default()
         },
         conditions: Some(Condition {
-            member_of: Some(vec![member_of.to_owned()]),
-            requires: None,
+            member_of: vector_of(member_of),
+            requires: vector_of(requires),
         }),
     })
 }
@@ -281,6 +292,10 @@ fn file_id(parcel: &Parcel) -> String {
     format!("{}@{}", parcel.label.sha256, parcel.label.name)
 }
 
+fn vector_of(option: Option<&str>) -> Option<Vec<String>> {
+    option.map(|val| vec![val.to_owned()])
+}
+
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
@@ -310,24 +325,43 @@ mod test {
             .unwrap()
     }
 
-    #[test]
-    fn test_expansion() {
-        // TODO: this is a bad test - embetteren it
-        let app1_dir = test_dir("app1");
-        let hippofacts = read_hippofacts(app1_dir.join("HIPPOFACTS")).unwrap();
+    fn parcel_conditions<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Condition {
+        parcel_named(invoice, parcel_name).conditions.as_ref().unwrap()
+
+    }
+
+    fn expand_test_invoice(name: &str) -> anyhow::Result<Invoice> {
+        let dir = test_dir(name);
+        let hippofacts = read_hippofacts(dir.join("HIPPOFACTS")).unwrap();
         let expansion_context = ExpansionContext {
-            relative_to: app1_dir,
+            relative_to: dir,
             invoice_versioning: InvoiceVersioning::Production,
         };
         let invoice = expand(&hippofacts, &expansion_context).expect("error expanding");
-        assert_eq!(hippofacts.bindle.name, invoice.bindle.id.name());
-        assert_eq!(2, invoice.group.as_ref().unwrap().len());
+        Ok(invoice)
+    }
+
+    #[test]
+    fn test_name_is_kept() {
+        let invoice = expand_test_invoice("app1").unwrap();
+        assert_eq!("weather", invoice.bindle.id.name());
+    }
+
+    #[test]
+    fn test_group_is_created_per_handler() {
+        let invoice = expand_test_invoice("app1").unwrap();
+        let groups = invoice.group.as_ref().unwrap();
+        assert_eq!(2, groups.len());
+        assert_eq!("out/fake.wasm-files", groups[0].name);
+        assert_eq!("out/lies.wasm-files", groups[1].name);
+    }
+
+    #[test]
+    fn test_files_are_members_of_correct_groups() {
+        let invoice = expand_test_invoice("app1").unwrap();
         assert_eq!(
             1,
-            parcel_named(&invoice, "scripts/ignore.json")
-                .conditions
-                .as_ref()
-                .unwrap()
+            parcel_conditions(&invoice, "scripts/ignore.json")
                 .member_of
                 .as_ref()
                 .unwrap()
@@ -335,14 +369,41 @@ mod test {
         );
         assert_eq!(
             2,
-            parcel_named(&invoice, "scripts/real.js")
-                .conditions
-                .as_ref()
-                .unwrap()
+            parcel_conditions(&invoice, "scripts/real.js")
                 .member_of
                 .as_ref()
                 .unwrap()
                 .len()
+        );
+    }
+
+    #[test]
+    fn test_handler_parcels_are_not_members_of_groups() {
+        let invoice = expand_test_invoice("app1").unwrap();
+        assert_eq!(
+            None,
+            parcel_conditions(&invoice, "out/lies.wasm")
+                .member_of
+        );
+    }
+
+    #[test]
+    fn test_handlers_require_correct_groups() {
+        let invoice = expand_test_invoice("app1").unwrap();
+        assert_eq!(
+            1,
+            parcel_conditions(&invoice, "out/lies.wasm")
+                .requires
+                .as_ref()
+                .unwrap()
+                .len()
+        );
+        assert_eq!(
+            "out/lies.wasm-files",
+            parcel_conditions(&invoice, "out/lies.wasm")
+                .requires
+                .as_ref()
+                .unwrap()[0]
         );
     }
 }

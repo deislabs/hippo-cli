@@ -6,7 +6,7 @@ use glob::GlobError;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
-use crate::{HippoFacts, hippofacts::Handler};
+use crate::{hippofacts::Handler, HippoFacts};
 
 pub struct ExpansionContext {
     pub relative_to: PathBuf,
@@ -94,7 +94,13 @@ fn expand_id(
 }
 
 fn expand_all_handlers_to_groups(hippofacts: &HippoFacts) -> anyhow::Result<Vec<Group>> {
-    let groups = hippofacts.handler.as_ref().ok_or_else(no_handlers)?.iter().map(expand_to_group).collect();
+    let groups = hippofacts
+        .handler
+        .as_ref()
+        .ok_or_else(no_handlers)?
+        .iter()
+        .map(expand_to_group)
+        .collect();
     Ok(groups)
 }
 
@@ -115,7 +121,9 @@ fn expand_all_files_to_parcels(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
     let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
-    let parcel_lists = handlers.iter().map(|handler| expand_files_to_parcels(handler, expansion_context));
+    let parcel_lists = handlers
+        .iter()
+        .map(|handler| expand_files_to_parcels(handler, expansion_context));
     let parcels = flatten_or_fail(parcel_lists)?;
     Ok(merge_memberships(parcels))
 }
@@ -150,7 +158,7 @@ fn expand_file_to_parcels(
 fn try_convert_one_match_to_parcel(
     path: Result<PathBuf, GlobError>,
     expansion_context: &ExpansionContext,
-    member_of: &str
+    member_of: &str,
 ) -> anyhow::Result<Parcel> {
     match path {
         Err(e) => Err(anyhow::Error::new(e)),
@@ -161,7 +169,7 @@ fn try_convert_one_match_to_parcel(
 fn convert_one_match_to_parcel(
     path: PathBuf,
     expansion_context: &ExpansionContext,
-    member_of: &str
+    member_of: &str,
 ) -> anyhow::Result<Parcel> {
     let mut file = std::fs::File::open(&path)?;
 
@@ -189,36 +197,41 @@ fn convert_one_match_to_parcel(
         },
         conditions: Some(Condition {
             member_of: Some(vec![member_of.to_owned()]),
-            requires: None
+            requires: None,
         }),
     })
 }
 
 fn merge_memberships(parcels: Vec<Parcel>) -> Vec<Parcel> {
-    parcels.into_iter()
-           .into_grouping_map_by(|p| p.label.sha256.clone())
-           .fold_first(|acc, _key, val| merge_parcel_into(acc, val))
-           .values()
-           .map(|p| p.clone())  // into_values is not yet stable
-           .collect()
+    parcels
+        .into_iter()
+        .into_grouping_map_by(|p| p.label.sha256.clone())
+        .fold_first(|acc, _key, val| merge_parcel_into(acc, val))
+        .values()
+        .map(|p| p.clone()) // into_values is not yet stable
+        .collect()
 }
 
 fn merge_parcel_into(first: Parcel, second: Parcel) -> Parcel {
     Parcel {
         label: first.label,
-        conditions: merge_parcel_conditions(first.conditions, second.conditions)
+        conditions: merge_parcel_conditions(first.conditions, second.conditions),
     }
 }
 
-fn merge_parcel_conditions(first: Option<Condition>, second: Option<Condition>) -> Option<Condition> {
+fn merge_parcel_conditions(
+    first: Option<Condition>,
+    second: Option<Condition>,
+) -> Option<Condition> {
     match first {
         None => second, // shouldn't happen
-        Some(first_condition) =>
-            match second {
-                None => Some(first_condition),
-                Some(second_condition) =>
-                    Some(merge_condition_lists(first_condition.clone(), second_condition.clone())),
-            }
+        Some(first_condition) => match second {
+            None => Some(first_condition),
+            Some(second_condition) => Some(merge_condition_lists(
+                first_condition.clone(),
+                second_condition.clone(),
+            )),
+        },
     }
 }
 
@@ -271,7 +284,9 @@ mod test {
     use super::*;
 
     fn test_dir(name: &str) -> PathBuf {
-        let test_data_base = PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap().join("testdata");
+        let test_data_base = PathBuf::from_str(env!("CARGO_MANIFEST_DIR"))
+            .unwrap()
+            .join("testdata");
         test_data_base.join(name)
     }
 
@@ -282,7 +297,13 @@ mod test {
     }
 
     fn parcel_named<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Parcel {
-        invoice.parcel.as_ref().unwrap().iter().find(|p| p.label.name == parcel_name).unwrap()
+        invoice
+            .parcel
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|p| p.label.name == parcel_name)
+            .unwrap()
     }
 
     #[test]
@@ -290,11 +311,34 @@ mod test {
         // TODO: this is a bad test - embetteren it
         let app1_dir = test_dir("app1");
         let hippofacts = read_hippofacts(app1_dir.join("HIPPOFACTS")).unwrap();
-        let expansion_context = ExpansionContext { relative_to: app1_dir, invoice_versioning: InvoiceVersioning::Production };
+        let expansion_context = ExpansionContext {
+            relative_to: app1_dir,
+            invoice_versioning: InvoiceVersioning::Production,
+        };
         let invoice = expand(&hippofacts, &expansion_context).expect("error expanding");
         assert_eq!(hippofacts.bindle.name, invoice.bindle.id.name());
         assert_eq!(2, invoice.group.as_ref().unwrap().len());
-        assert_eq!(1, parcel_named(&invoice, "scripts/ignore.json").conditions.as_ref().unwrap().member_of.as_ref().unwrap().len());
-        assert_eq!(2, parcel_named(&invoice, "scripts/real.js").conditions.as_ref().unwrap().member_of.as_ref().unwrap().len());
+        assert_eq!(
+            1,
+            parcel_named(&invoice, "scripts/ignore.json")
+                .conditions
+                .as_ref()
+                .unwrap()
+                .member_of
+                .as_ref()
+                .unwrap()
+                .len()
+        );
+        assert_eq!(
+            2,
+            parcel_named(&invoice, "scripts/real.js")
+                .conditions
+                .as_ref()
+                .unwrap()
+                .member_of
+                .as_ref()
+                .unwrap()
+                .len()
+        );
     }
 }

@@ -208,7 +208,7 @@ fn merge_memberships(parcels: Vec<Parcel>) -> Vec<Parcel> {
         .into_grouping_map_by(|p| p.label.sha256.clone())
         .fold_first(|acc, _key, val| merge_parcel_into(acc, val))
         .values()
-        .map(|p| p.clone()) // into_values is not yet stable
+        .cloned() // into_values is not yet stable
         .collect()
 }
 
@@ -228,8 +228,8 @@ fn merge_parcel_conditions(
         Some(first_condition) => match second {
             None => Some(first_condition),
             Some(second_condition) => Some(merge_condition_lists(
-                first_condition.clone(),
-                second_condition.clone(),
+                first_condition,
+                second_condition,
             )),
         },
     }

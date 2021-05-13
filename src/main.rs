@@ -139,7 +139,7 @@ async fn run(
                 println!("pushed: {}", &invoice.bindle.id);
             } else {
                 println!("id:      {}", &invoice.bindle.id);
-                println!("command: bindle push -p {} {}", &destination.as_ref().canonicalize()?.to_string_lossy(), &invoice.bindle.id);
+                println!("command: bindle push -p {} {}", dunce::canonicalize(&destination)?.to_string_lossy(), &invoice.bindle.id);
             }
         }
     }

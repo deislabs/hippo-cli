@@ -11,6 +11,7 @@ anyhow = "1.0"
 bindle = { version = "0.3.1", default-features = false, features = ["client"] }
 chrono = "0.4"
 clap = { version = "3.0.0-beta.2" }
+dunce = "1.0"
 futures = "0.3.14"
 glob = "0.3.0"
 mime_guess = { version = "2.0" }

@@ -123,7 +123,14 @@ fn expand_handler_modules_to_parcels(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
     let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
-    let parcels = handlers.iter().map(|handler| convert_one_match_to_parcel(PathBuf::from(expansion_context.to_absolute(&handler.name)), expansion_context, None, Some(&group_name(handler))));
+    let parcels = handlers.iter().map(|handler| {
+        convert_one_match_to_parcel(
+            PathBuf::from(expansion_context.to_absolute(&handler.name)),
+            expansion_context,
+            None,
+            Some(&group_name(handler)),
+        )
+    });
     parcels.collect()
 }
 
@@ -236,10 +243,9 @@ fn merge_parcel_conditions(
         None => second, // shouldn't happen
         Some(first_condition) => match second {
             None => Some(first_condition),
-            Some(second_condition) => Some(merge_condition_lists(
-                first_condition,
-                second_condition,
-            )),
+            Some(second_condition) => {
+                Some(merge_condition_lists(first_condition, second_condition))
+            }
         },
     }
 }
@@ -326,8 +332,10 @@ mod test {
     }
 
     fn parcel_conditions<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Condition {
-        parcel_named(invoice, parcel_name).conditions.as_ref().unwrap()
-
+        parcel_named(invoice, parcel_name)
+            .conditions
+            .as_ref()
+            .unwrap()
     }
 
     fn expand_test_invoice(name: &str) -> anyhow::Result<Invoice> {
@@ -380,11 +388,7 @@ mod test {
     #[test]
     fn test_handler_parcels_are_not_members_of_groups() {
         let invoice = expand_test_invoice("app1").unwrap();
-        assert_eq!(
-            None,
-            parcel_conditions(&invoice, "out/lies.wasm")
-                .member_of
-        );
+        assert_eq!(None, parcel_conditions(&invoice, "out/lies.wasm").member_of);
     }
 
     #[test]

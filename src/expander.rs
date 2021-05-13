@@ -173,8 +173,6 @@ fn convert_one_match_to_parcel(
 ) -> anyhow::Result<Parcel> {
     let mut file = std::fs::File::open(&path)?;
 
-    // TODO: We probably want this to be a relative path, first for bindle fidelity,
-    // and also so we can find the damn file when we go to upload things!
     let name = expansion_context.to_relative(&path)?;
     let size = file.metadata()?.len();
 

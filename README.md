@@ -1,9 +1,188 @@
 # hippofactory
 
 The `hippofactory` tool processes an application's `HIPPOFACTS` (Hippo
-artifacts) file and generates a standalone Bindle that can be uploaded
-using `bindle push`.
+artifacts) file and generates a bindle that it can either push directly
+or can later be uploaded using `bindle push`.
 
+## The HIPPOFACTS file
+
+HIPPOFACTS is a TOML file with the following structure:
+
+```toml
+[bindle]
+name = "birdsondemand"
+version = "1.2.3"
+description = "provides birds as a service"  # optional
+authors = ["Joan Q Programmer"]              # optional
+
+[[handler]]
+route = "/birds/flightless"
+name = "bin/penguin.wasm"
+files = ["photo/adelie.png", "photo/rockhopper.png", "stock/*.jpg"]
+
+[[handler]]
+route = "/birds/irritable/fighty"
+name = "bin/cassowary.wasm"
+# files key is optional
+
+[[handler]]
+route = "/birds/naughty"
+name = "bin/kea.wasm"
+files = ["stock/kea.jpg", "stock/wipers.jpg"]
+```
+
+The `bindle` section is copied directly to `invoice.toml`, _except_ that in development
+mode a prerelease segment is appended to the version to make it unique.
+
+Each `handler` table is processed as follows:
+
+* A group for the handler is added to the invoice
+* The `name` value is looked up in the file system, and a parcel is entered into the invoice
+  for the corresponding file. The parcel's `conditions.requires` is set to the handler group.
+* If the handler has a `files` key, all patterns in that array are matched against the file
+  system, and a parcel is entered into the invoice for the corresponding file.  The parcel
+  `label.name` is the relative path of the file to the `HIPPOFACTS` file.The parcel's
+  `conditions.memberOf` is set to a list of _all_ handler groups that contained patterns that
+  the file matched - this may be more than one if multiple handler file patterns matched the
+  same file.
+
+For example, given the following file structure:
+
+```
+|- HIPPOFACTS
+|- src
+|  |- main.rs
+|  |- utils.rs
+|- bin
+|  |- cassowary.wasm
+|  |- kea.wasm
+|  |- kokako.wasm
+|  |- penguin.wasm
+|- photo
+|  |- adelie.png
+|  |- emperor.png
+|  |- rockhopper.png
+|- stock
+   |- kea.jpg
+   |- little-blue.jpg
+   |- little-blue.png
+   |- wipers.jpg
+```
+
+the previous `HIPPOFACTS` would create the following invoice (omitting some details
+and adding comments):
+
+```toml
+bindleVersion = '1.0.0'
+
+[bindle]
+name = 'birdsondemand'
+version = '1.2.3-ivan-2021.05.18.10.51.09.084'
+description = 'provides birds as a service'
+authors = ['Joan Q Programmer']
+
+# Parcels representing handler WASM modules have a `requires` attribute
+
+[[parcel]]
+[parcel.label]
+sha256 = '0a4346f806b28b3ce94905c3ac56fcd5ee2337d8613161696aba52eb0c3551cc'
+name = 'bin/penguin.wasm'
+[parcel.conditions]
+requires = ['bin/penguin.wasm-files']
+
+[[parcel]]
+[parcel.label]
+sha256 = '1f71511371129511321c45be058c60e23cf9ba898d8a3f3309555985b5027490'
+name = 'bin/cassowary.wasm'
+[parcel.conditions]
+requires = ['bin/cassowary.wasm-files']
+
+[[parcel]]
+[parcel.label]
+sha256 = 'bab02c178882085bf20defd15c0e8971edd95488a1ecb4a6273e6afcfb3c4030'
+name = 'bin/kea.wasm'
+[parcel.conditions]
+requires = ['bin/kea.wasm-files']
+
+# Parcels derived from `files` patterns have a `memberOf` attribute
+
+[[parcel]]
+[parcel.label]
+sha256 = 'e99f19705a23cbeeeade5d2b4f8b83fff09beb093552e82073cdb302ee10eb76'
+name = 'photo/adelie.png'
+[parcel.conditions]
+memberOf = ['bin/penguin.wasm-files']
+
+[[parcel]]
+[parcel.label]
+sha256 = 'e8f7b60dfe5ee560edd1ac616463a0682a0e7c57a5ce2a8fe5c0990e500d0ac5'
+name = 'photo/rockhopper.png'
+[parcel.conditions]
+memberOf = ['bin/penguin.wasm-files']
+
+[[parcel]]
+[parcel.label]
+sha256 = '843baaf5a63cbc38d4d4c00036b95e435254eece7480fb717c8a17dcdc2aeefc'
+name = 'stock/little-blue.jpg'
+[parcel.conditions]
+memberOf = ['bin/penguin.wasm-files']
+
+# Some files are matched by more than one handler's patterns
+
+[[parcel]]
+[parcel.label]
+sha256 = '6451ab5be799a6aa52ce8b8a084a12066bb2dd8e1a73a692627bb96b4b9a72f0'
+name = 'stock/wipers.jpg'
+[parcel.conditions]
+memberOf = [
+    'bin/penguin.wasm-files',
+    'bin/kea.wasm-files',
+]
+
+[[parcel]]
+[parcel.label]
+sha256 = '93c3a391d842e3b8032d560db4870b5426c5c05a9f2a60b187e567ae69d8e658'
+name = 'stock/kea.jpg'
+[parcel.conditions]
+memberOf = [
+    'bin/penguin.wasm-files',
+    'bin/kea.wasm-files',
+]
+
+# Group per handler
+
+[[group]]
+name = 'bin/penguin.wasm-files'
+
+[[group]]
+name = 'bin/cassowary.wasm-files'
+
+[[group]]
+name = 'bin/kea.wasm-files'
+```
+
+`hippofactory` does not currently support Bindle's `parcel.label.feature`
+or `signature` features.  It does not yet support push options other than the server URL (e.g. auth).
+
+## Running hippofactory
+
+As a developer you can run `hippofactory .` in your `HIPPOFACTS` directory to assemble all matching
+files and push them to the Bindle server specified in the `BINDLE_SERVER_URL` environment variable.
+(If you don't want to set the environment variable, pass the `-s` argument with the URL.)
+
+In this mode, `hippofactory`:
+
+* Mangles the version with a prerelease segment
+* Stages to a temporary directory
+* Pushes to the Bindle server
+
+If you want to review the proposed bindle rather than pushing it, pass `--prepare -d <staging_dir>`.
+This will stage the bindle to the specified directory but _not_ push it.  (If you later want
+to push it, you can do so using the separate `bindle` tool.)
+
+In a CI environment you can supply the `-v production` option to suppress version mangling.
+This will create and upload the bindle with the version from `HIPPOFACTS`, without the
+prerelease segment.
 ## Building from source
 
 * Known link failure on WSL: workaround is to build once with `RUSTFLAGS='-C opt-level=0' cargo build`

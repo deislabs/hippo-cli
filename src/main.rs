@@ -73,16 +73,18 @@ async fn main() -> anyhow::Result<()> {
     let hippofacts_arg = args
         .value_of(ARG_HIPPOFACTS)
         .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))?;
-    let staging_dir_arg = args
-        .value_of(ARG_STAGING_DIR);
+    let staging_dir_arg = args.value_of(ARG_STAGING_DIR);
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
     let output_format_arg = args.value_of(ARG_OUTPUT).unwrap();
-    let push_to =
-        if args.is_present(ARG_PREPARE_ONLY) {
-            None
-        } else {
-            Some(args.value_of(ARG_SERVER_URL).ok_or_else(|| anyhow::Error::msg("Server URL is required"))?.to_owned())
-        };
+    let push_to = if args.is_present(ARG_PREPARE_ONLY) {
+        None
+    } else {
+        Some(
+            args.value_of(ARG_SERVER_URL)
+                .ok_or_else(|| anyhow::Error::msg("Server URL is required"))?
+                .to_owned(),
+        )
+    };
 
     let source_file_or_dir = std::env::current_dir()?.join(hippofacts_arg);
     let source = if source_file_or_dir.is_file() {
@@ -91,17 +93,27 @@ async fn main() -> anyhow::Result<()> {
         source_file_or_dir.join("HIPPOFACTS")
     };
     if !source.exists() {
-        return Err(anyhow::anyhow!("Artifacts spec not found: file {} does not exist", source.to_string_lossy()));
+        return Err(anyhow::anyhow!(
+            "Artifacts spec not found: file {} does not exist",
+            source.to_string_lossy()
+        ));
     }
 
     let destination = match staging_dir_arg {
         Some(dir) => std::env::current_dir()?.join(dir),
-        None => std::env::temp_dir().join("hippo-staging"),  // TODO: make unpredictable?
+        None => std::env::temp_dir().join("hippo-staging"), // TODO: make unpredictable?
     };
     let invoice_versioning = InvoiceVersioning::parse(versioning_arg);
     let output_format = OutputFormat::parse(output_format_arg);
 
-    run(&source, &destination, invoice_versioning, output_format, push_to).await
+    run(
+        &source,
+        &destination,
+        invoice_versioning,
+        output_format,
+        push_to,
+    )
+    .await
 }
 
 async fn run(

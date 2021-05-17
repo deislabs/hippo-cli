@@ -2,10 +2,12 @@
 name = "weather"
 version = "1.2.3"
 
-[files]
-server = [
-    "out/*.wasm"
-]
-client = [
-    "scripts/*.js"
-]
+[[handler]]
+name = "out/fake.wasm"
+route = "/fake"
+files = ["scripts/*.js"]
+
+[[handler]]
+name = "out/lies.wasm"
+route = "/lies"
+files = ["scripts/*.js", "scripts/*.json"]

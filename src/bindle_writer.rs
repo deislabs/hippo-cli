@@ -27,21 +27,34 @@ impl BindleWriter {
         Ok(())
     }
 
-    async fn write_invoice_file(&self, invoice: &Invoice, bindle_dir: &PathBuf) -> anyhow::Result<()> {
+    async fn write_invoice_file(
+        &self,
+        invoice: &Invoice,
+        bindle_dir: &PathBuf,
+    ) -> anyhow::Result<()> {
         let invoice_text = toml::to_string_pretty(&invoice)?;
         let invoice_file = bindle_dir.join("invoice.toml");
         tokio::fs::write(&invoice_file, &invoice_text).await?;
         Ok(())
     }
 
-    async fn write_parcel_files(&self, invoice: &Invoice, parcels_dir: &PathBuf) -> anyhow::Result<()> {
+    async fn write_parcel_files(
+        &self,
+        invoice: &Invoice,
+        parcels_dir: &PathBuf,
+    ) -> anyhow::Result<()> {
         let parcels = match &invoice.parcel {
             Some(p) => p,
             None => return Ok(()),
         };
 
-        let parcel_writes = parcels.iter().map(|parcel| self.write_one_parcel(parcels_dir, &parcel));
-        futures::future::join_all(parcel_writes).await.into_iter().collect::<anyhow::Result<Vec<_>>>()?;
+        let parcel_writes = parcels
+            .iter()
+            .map(|parcel| self.write_one_parcel(parcels_dir, &parcel));
+        futures::future::join_all(parcel_writes)
+            .await
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()?;
         Ok(())
     }
 

@@ -1,0 +1,20 @@
+[bindle]
+name = "birdsondemand"
+version = "1.2.3"
+description = "provides birds as a service"  # optional
+authors = ["Joan Q Programmer"]              # optional
+
+[[handler]]
+route = "/birds/flightless"
+name = "bin/penguin.wasm"
+files = ["photo/adelie.png", "photo/rockhopper.png", "stock/*.jpg"]
+
+[[handler]]
+route = "/birds/irritable/fighty"
+name = "bin/cassowary.wasm"
+# files key is optional
+
+[[handler]]
+route = "/birds/naughty"
+name = "bin/kea.wasm"
+files = ["stock/kea.jpg", "stock/wipers.jpg"]

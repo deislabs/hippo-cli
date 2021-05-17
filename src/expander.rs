@@ -487,7 +487,7 @@ mod test {
             .iter()
             .filter(|parcel| parcel.label.name == "wasm/no-assets.wasm")
             .collect::<Vec<_>>();
-        assert_eq!(2, parcels.len());
+        assert_eq!(2, file_occurrences.len());
         let handler_parcel = file_occurrences
             .iter()
             .filter(|parcel| parcel.conditions.as_ref().unwrap().requires.is_some());

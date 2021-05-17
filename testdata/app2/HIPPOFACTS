@@ -1,0 +1,32 @@
+[bindle]
+name = "birdbattle"
+version = "1.0.0"
+
+[[handler]]
+name = "wasm/no-assets.wasm"
+route = "/penguin"
+
+[[handler]]
+name = "wasm/empty-assets.wasm"
+route = "/moa"
+files = []
+
+[[handler]]
+name = "wasm/no-match.wasm"
+route = "/weka"
+files = ["scripts/*.biscuits"]
+
+[[handler]]
+name = "wasm/no-directory.wasm"
+route = "/kokako"
+files = ["biscuits/*.txt"]
+
+[[handler]]
+name = "wasm/specific-file-missing.wasm"
+route = "/piwakawaka"
+files = ["scripts/important-but-does-not-exist.txt"]
+
+[[handler]]
+name = "wasm/other-wasms.wasm"
+route = "/kea"
+files = ["wasm/no*.wasm"]

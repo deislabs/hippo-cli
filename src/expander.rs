@@ -25,7 +25,7 @@ impl ExpansionContext {
             .to_str()
             .ok_or_else(|| anyhow::Error::msg("Can't convert back to relative path"))?
             .to_owned()
-            .replace("\\", "/");  // TODO: a better way
+            .replace("\\", "/"); // TODO: a better way
         Ok(relative_path_string)
     }
 
@@ -410,5 +410,91 @@ mod test {
                 .as_ref()
                 .unwrap()[0]
         );
+    }
+
+    #[test]
+    fn test_if_no_files_key_then_no_asset_parcels() {
+        let invoice = expand_test_invoice("app2").unwrap();
+        let count = invoice
+            .parcel
+            .unwrap()
+            .iter()
+            .filter(|parcel| parcel.member_of("wasm/no-assets.wasm-files"))
+            .count();
+        assert_eq!(0, count);
+    }
+
+    #[test]
+    fn test_if_empty_files_key_then_no_asset_parcels() {
+        let invoice = expand_test_invoice("app2").unwrap();
+        let count = invoice
+            .parcel
+            .unwrap()
+            .iter()
+            .filter(|parcel| parcel.member_of("wasm/empty-assets.wasm-files"))
+            .count();
+        assert_eq!(0, count);
+    }
+
+    #[test]
+    fn test_if_no_files_match_then_no_asset_parcels() {
+        let invoice = expand_test_invoice("app2").unwrap();
+        let count = invoice
+            .parcel
+            .unwrap()
+            .iter()
+            .filter(|parcel| parcel.member_of("wasm/no-match.wasm-files"))
+            .count();
+        assert_eq!(0, count);
+    }
+
+    #[test]
+    fn test_if_nonexistent_directory_then_no_asset_parcels() {
+        let invoice = expand_test_invoice("app2").unwrap();
+        let count = invoice
+            .parcel
+            .unwrap()
+            .iter()
+            .filter(|parcel| parcel.member_of("wasm/no-directory.wasm-files"))
+            .count();
+        assert_eq!(0, count);
+    }
+
+    #[test]
+    fn test_if_file_does_not_exist_then_no_asset_parcels() {
+        // TODO: I feel like this should be an error
+        let invoice = expand_test_invoice("app2").unwrap();
+        let count = invoice
+            .parcel
+            .unwrap()
+            .iter()
+            .filter(|parcel| parcel.member_of("wasm/specific-file-missing.wasm-files"))
+            .count();
+        assert_eq!(0, count); // TODO: ?
+    }
+
+    #[test]
+    fn test_if_handler_appears_as_an_asset_then_there_are_two_parcels_with_appropriate_membership_and_requirements_clauses(
+    ) {
+        let invoice = expand_test_invoice("app2").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        let count = parcels
+            .iter()
+            .filter(|parcel| parcel.member_of("wasm/other-wasms.wasm-files"))
+            .count();
+        assert_eq!(3, count);
+        let file_occurrences = parcels
+            .iter()
+            .filter(|parcel| parcel.label.name == "wasm/no-assets.wasm")
+            .collect::<Vec<_>>();
+        assert_eq!(2, parcels.len());
+        let handler_parcel = file_occurrences
+            .iter()
+            .filter(|parcel| parcel.conditions.as_ref().unwrap().requires.is_some());
+        assert_eq!(1, handler_parcel.count());
+        let asset_parcel = file_occurrences
+            .iter()
+            .filter(|parcel| parcel.conditions.as_ref().unwrap().member_of.is_some());
+        assert_eq!(1, asset_parcel.count());
     }
 }

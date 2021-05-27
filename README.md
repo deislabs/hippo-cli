@@ -1,5 +1,7 @@
 # hippofactory
 
+`hippofactory` is an **experimental** client for [Bindle](https://github.com/deislabs/bindle).
+
 The `hippofactory` tool processes an application's `HIPPOFACTS` (Hippo
 artifacts) file and generates a bindle that it can either push directly
 or can later be uploaded using `bindle push`.

@@ -79,16 +79,20 @@ bindleVersion = '1.0.0'
 
 [bindle]
 name = 'birdsondemand'
-version = '1.2.3-ivan-2021.05.18.10.51.09.084'
+version = '1.2.3-ivan-2021.05.31.16.49.09.990'
 description = 'provides birds as a service'
 authors = ['Joan Q Programmer']
 
 # Parcels representing handler WASM modules have a `requires` attribute
+# and a `wagi.route` feature
 
 [[parcel]]
 [parcel.label]
 sha256 = '0a4346f806b28b3ce94905c3ac56fcd5ee2337d8613161696aba52eb0c3551cc'
 name = 'bin/penguin.wasm'
+[parcel.label.feature.wagi]
+file = 'false'
+route = '/birds/flightless'
 [parcel.conditions]
 requires = ['bin/penguin.wasm-files']
 
@@ -96,6 +100,9 @@ requires = ['bin/penguin.wasm-files']
 [parcel.label]
 sha256 = '1f71511371129511321c45be058c60e23cf9ba898d8a3f3309555985b5027490'
 name = 'bin/cassowary.wasm'
+[parcel.label.feature.wagi]
+file = 'false'
+route = '/birds/irritable/fighty'
 [parcel.conditions]
 requires = ['bin/cassowary.wasm-files']
 
@@ -103,15 +110,21 @@ requires = ['bin/cassowary.wasm-files']
 [parcel.label]
 sha256 = 'bab02c178882085bf20defd15c0e8971edd95488a1ecb4a6273e6afcfb3c4030'
 name = 'bin/kea.wasm'
+[parcel.label.feature.wagi]
+file = 'false'
+route = '/birds/naughty'
 [parcel.conditions]
 requires = ['bin/kea.wasm-files']
 
-# Parcels derived from `files` patterns have a `memberOf` attribute
+# Parcels derived from `files` patterns have a `memberOf` attribute and a
+# `wagi.file` feature of "true"
 
 [[parcel]]
 [parcel.label]
 sha256 = 'e99f19705a23cbeeeade5d2b4f8b83fff09beb093552e82073cdb302ee10eb76'
 name = 'photo/adelie.png'
+[parcel.label.feature.wagi]
+file = 'true'
 [parcel.conditions]
 memberOf = ['bin/penguin.wasm-files']
 
@@ -119,6 +132,8 @@ memberOf = ['bin/penguin.wasm-files']
 [parcel.label]
 sha256 = 'e8f7b60dfe5ee560edd1ac616463a0682a0e7c57a5ce2a8fe5c0990e500d0ac5'
 name = 'photo/rockhopper.png'
+[parcel.label.feature.wagi]
+file = 'true'
 [parcel.conditions]
 memberOf = ['bin/penguin.wasm-files']
 
@@ -126,6 +141,8 @@ memberOf = ['bin/penguin.wasm-files']
 [parcel.label]
 sha256 = '843baaf5a63cbc38d4d4c00036b95e435254eece7480fb717c8a17dcdc2aeefc'
 name = 'stock/little-blue.jpg'
+[parcel.label.feature.wagi]
+file = 'true'
 [parcel.conditions]
 memberOf = ['bin/penguin.wasm-files']
 
@@ -135,6 +152,8 @@ memberOf = ['bin/penguin.wasm-files']
 [parcel.label]
 sha256 = '6451ab5be799a6aa52ce8b8a084a12066bb2dd8e1a73a692627bb96b4b9a72f0'
 name = 'stock/wipers.jpg'
+[parcel.label.feature.wagi]
+file = 'true'
 [parcel.conditions]
 memberOf = [
     'bin/penguin.wasm-files',
@@ -145,6 +164,8 @@ memberOf = [
 [parcel.label]
 sha256 = '93c3a391d842e3b8032d560db4870b5426c5c05a9f2a60b187e567ae69d8e658'
 name = 'stock/kea.jpg'
+[parcel.label.feature.wagi]
+file = 'true'
 [parcel.conditions]
 memberOf = [
     'bin/penguin.wasm-files',

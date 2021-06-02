@@ -1,4 +1,6 @@
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 
 use bindle::{BindleSpec, Condition, Group, Invoice, Label, Parcel};
@@ -128,6 +130,7 @@ fn expand_handler_modules_to_parcels(
         convert_one_match_to_parcel(
             PathBuf::from(expansion_context.to_absolute(&handler.name)),
             expansion_context,
+            vec![("route", &handler.route), ("file", "false")],
             None,
             Some(&group_name(handler)),
         )
@@ -180,13 +183,17 @@ fn try_convert_one_match_to_parcel(
 ) -> anyhow::Result<Parcel> {
     match path {
         Err(e) => Err(anyhow::Error::new(e)),
-        Ok(path) => convert_one_match_to_parcel(path, expansion_context, Some(member_of), None),
+        Ok(path) => {
+            let features = vec![("file", "true")];
+            convert_one_match_to_parcel(path, expansion_context, features, Some(member_of), None)
+        }
     }
 }
 
 fn convert_one_match_to_parcel(
     path: PathBuf,
     expansion_context: &ExpansionContext,
+    wagi_features: Vec<(&str, &str)>,
     member_of: Option<&str>,
     requires: Option<&str>,
 ) -> anyhow::Result<Parcel> {
@@ -204,12 +211,16 @@ fn convert_one_match_to_parcel(
         .first_or_octet_stream()
         .to_string();
 
+    // let features = vec![("route", route)];
+    let feature = Some(wagi_feature_of(wagi_features));
+
     Ok(Parcel {
         label: Label {
             name,
             sha256: digest_string,
             media_type,
             size,
+            feature,
             ..Label::default()
         },
         conditions: Some(Condition {
@@ -303,6 +314,17 @@ fn vector_of(option: Option<&str>) -> Option<Vec<String>> {
     option.map(|val| vec![val.to_owned()])
 }
 
+fn wagi_feature_of(values: Vec<(&str, &str)>) -> BTreeMap<String, BTreeMap<String, String>> {
+    BTreeMap::from_iter(vec![("wagi".to_owned(), feature_map_of(values))])
+}
+
+fn feature_map_of(values: Vec<(&str, &str)>) -> BTreeMap<String, String> {
+    values
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect()
+}
+
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
@@ -332,6 +354,25 @@ mod test {
             .unwrap()
     }
 
+    fn parcel_feature_value<'a>(
+        invoice: &'a Invoice,
+        parcel_name: &str,
+        feature_name: &str,
+        item_name: &str,
+    ) -> &'a str {
+        parcel_named(invoice, parcel_name)
+            .label
+            .feature
+            .as_ref()
+            .unwrap()
+            .get(feature_name)
+            .as_ref()
+            .unwrap()
+            .get(item_name)
+            .as_ref()
+            .unwrap()
+    }
+
     fn parcel_conditions<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Condition {
         parcel_named(invoice, parcel_name)
             .conditions
@@ -354,6 +395,24 @@ mod test {
     fn test_name_is_kept() {
         let invoice = expand_test_invoice("app1").unwrap();
         assert_eq!("weather", invoice.bindle.id.name());
+    }
+
+    #[test]
+    fn test_route_is_mapped() {
+        let invoice = expand_test_invoice("app1").unwrap();
+        assert_eq!(
+            "/fake",
+            parcel_feature_value(&invoice, "out/fake.wasm", "wagi", "route")
+        );
+    }
+
+    #[test]
+    fn test_handler_parcel_is_not_asset() {
+        let invoice = expand_test_invoice("app1").unwrap();
+        assert_eq!(
+            "false",
+            parcel_feature_value(&invoice, "out/fake.wasm", "wagi", "file")
+        );
     }
 
     #[test]
@@ -383,6 +442,15 @@ mod test {
                 .as_ref()
                 .unwrap()
                 .len()
+        );
+    }
+
+    #[test]
+    fn test_assets_parcels_are_marked_as_assets() {
+        let invoice = expand_test_invoice("app1").unwrap();
+        assert_eq!(
+            "true",
+            parcel_feature_value(&invoice, "scripts/real.js", "wagi", "file")
         );
     }
 

@@ -14,6 +14,8 @@ const ARG_OUTPUT: &str = "output_format";
 const ARG_VERSIONING: &str = "versioning";
 const ARG_BINDLE_URL: &str = "bindle_server";
 const ARG_HIPPO_URL: &str = "hippo_url";
+const ARG_HIPPO_USERNAME: &str = "hippo_username";
+const ARG_HIPPO_PASSWORD: &str = "hippo_password";
 const ARG_ACTION: &str = "action";
 
 const ACTION_ALL: &str = "all";
@@ -74,6 +76,20 @@ async fn main() -> anyhow::Result<()> {
                 .about("The Hippo service to push the artifacts to")
         )
         .arg(
+            clap::Arg::new(ARG_HIPPO_USERNAME)
+                .required_if_eq(ARG_ACTION, ACTION_ALL)
+                .long("hippo-username")
+                .env("HIPPO_USERNAME")
+                .about("The username for connecting to Hippo")
+        )
+        .arg(
+            clap::Arg::new(ARG_HIPPO_PASSWORD)
+                .required_if_eq(ARG_ACTION, ACTION_ALL)
+                .long("hippo-password")
+                .env("HIPPO_PASSWORD")
+                .about("The username for connecting to Hippo")
+        )
+        .arg(
             clap::Arg::new(ARG_ACTION)
                 .possible_values(&[ACTION_ALL, ACTION_BINDLE, ACTION_PREPARE])
                 .default_value(ACTION_ALL)
@@ -94,10 +110,18 @@ async fn main() -> anyhow::Result<()> {
         None | Some(ACTION_PREPARE) => None,
         _ => args.value_of(ARG_BINDLE_URL).map(|s| s.to_owned()),
     };
-    let notify_to = match args.value_of(ARG_ACTION) {
+    let hippo_url = match args.value_of(ARG_ACTION) {
         Some(ACTION_ALL) => args.value_of(ARG_HIPPO_URL).map(|s| s.to_owned()),
         _ => None,
     };
+    let hippo_username = args.value_of(ARG_HIPPO_USERNAME);
+    let hippo_password = args.value_of(ARG_HIPPO_PASSWORD);
+
+    let notify_to = hippo_url.map(|url| hippo_notifier::ConnectionInfo {
+        url,
+        username: hippo_username.unwrap().to_owned(), // Known to be set if the URL is
+        password: hippo_password.unwrap().to_owned(),
+    });
 
     let source_file_or_dir = std::env::current_dir()?.join(hippofacts_arg);
     let source = if source_file_or_dir.is_file() {
@@ -136,7 +160,7 @@ async fn run(
     invoice_versioning: InvoiceVersioning,
     output_format: OutputFormat,
     push_to: Option<String>,
-    notify_to: Option<String>,
+    notify_to: Option<hippo_notifier::ConnectionInfo>,
 ) -> anyhow::Result<()> {
     let source_dir = source
         .as_ref()
@@ -170,7 +194,11 @@ async fn run(
                 println!("pushed: {}", &invoice.bindle.id);
             } else {
                 println!("id:      {}", &invoice.bindle.id);
-                println!("command: bindle push -p {} {}", dunce::canonicalize(&destination)?.to_string_lossy(), &invoice.bindle.id);
+                println!(
+                    "command: bindle push -p {} {}",
+                    dunce::canonicalize(&destination)?.to_string_lossy(),
+                    &invoice.bindle.id
+                );
             }
         }
     }

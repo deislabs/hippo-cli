@@ -11,8 +11,13 @@ const ARG_HIPPOFACTS: &str = "hippofacts_path";
 const ARG_STAGING_DIR: &str = "output_dir";
 const ARG_OUTPUT: &str = "output_format";
 const ARG_VERSIONING: &str = "versioning";
-const ARG_SERVER_URL: &str = "bindle_server";
-const ARG_PREPARE_ONLY: &str = "prepare";
+const ARG_BINDLE_URL: &str = "bindle_server";
+const ARG_HIPPO_URL: &str = "hippo_url";
+const ARG_ACTION: &str = "action";
+
+const ACTION_ALL: &str = "all";
+const ACTION_BINDLE: &str = "bindle";
+const ACTION_PREPARE: &str = "prepare";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -28,11 +33,11 @@ async fn main() -> anyhow::Result<()> {
         )
         .arg(
             clap::Arg::new(ARG_STAGING_DIR)
-                .required(false)
+                .required_if_eq(ARG_ACTION, ACTION_PREPARE)
                 .takes_value(true)
                 .short('d')
                 .long("dir")
-                .about("The path to output the artifacts to (required with --prepare, otherwise uses a temporary directory)"),
+                .about("The path to output the artifacts to (required with --action prepare, otherwise uses a temporary directory)"),
         )
         .arg(
             clap::Arg::new(ARG_VERSIONING)
@@ -53,20 +58,28 @@ async fn main() -> anyhow::Result<()> {
                 .about("What to print on success"),
         )
         .arg(
-            clap::Arg::new(ARG_SERVER_URL)
-                .required_unless_present(ARG_PREPARE_ONLY)
+            clap::Arg::new(ARG_BINDLE_URL)
+                .required_if_eq_any(&[(ARG_ACTION, ACTION_ALL), (ARG_ACTION, ACTION_BINDLE)])
                 .short('s')
                 .long("server")
                 .env("BINDLE_SERVER_URL")
                 .about("The Bindle server to push the artifacts to")
         )
         .arg(
-            clap::Arg::new(ARG_PREPARE_ONLY)
+            clap::Arg::new(ARG_HIPPO_URL)
+                .required_if_eq(ARG_ACTION, ACTION_ALL)
+                .long("hippo-url")
+                .env("HIPPO_SERVICE_URL")
+                .about("The Hippo service to push the artifacts to")
+        )
+        .arg(
+            clap::Arg::new(ARG_ACTION)
+                .possible_values(&[ACTION_ALL, ACTION_BINDLE, ACTION_PREPARE])
+                .default_value(ACTION_ALL)
                 .required(false)
-                .requires(ARG_STAGING_DIR)
-                .takes_value(false)
-                .long("prepare")
-                .about("Prepares an artifact layout in <output_dir> but does not push"),
+                .short('a')
+                .long("action")
+                .about("What action to take with the generated bindle"),
         )
         .get_matches();
 
@@ -76,14 +89,13 @@ async fn main() -> anyhow::Result<()> {
     let staging_dir_arg = args.value_of(ARG_STAGING_DIR);
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
     let output_format_arg = args.value_of(ARG_OUTPUT).unwrap();
-    let push_to = if args.is_present(ARG_PREPARE_ONLY) {
-        None
-    } else {
-        Some(
-            args.value_of(ARG_SERVER_URL)
-                .ok_or_else(|| anyhow::Error::msg("Server URL is required"))?
-                .to_owned(),
-        )
+    let push_to = match args.value_of(ARG_ACTION) {
+        None | Some(ACTION_PREPARE) => None,
+        _ => args.value_of(ARG_BINDLE_URL).map(|s| s.to_owned()),
+    };
+    let notify_to = match args.value_of(ARG_ACTION) {
+        Some(ACTION_ALL) => args.value_of(ARG_HIPPO_URL).map(|s| s.to_owned()),
+        _ => None,
     };
 
     let source_file_or_dir = std::env::current_dir()?.join(hippofacts_arg);
@@ -112,6 +124,7 @@ async fn main() -> anyhow::Result<()> {
         invoice_versioning,
         output_format,
         push_to,
+        notify_to,
     )
     .await
 }
@@ -122,6 +135,7 @@ async fn run(
     invoice_versioning: InvoiceVersioning,
     output_format: OutputFormat,
     push_to: Option<String>,
+    notify_to: Option<String>,
 ) -> anyhow::Result<()> {
     let source_dir = source
         .as_ref()
@@ -141,8 +155,20 @@ async fn run(
 
     if let Some(url) = &push_to {
         bindle_pusher::push_all(&destination, &invoice.bindle.id, &url).await?;
+        if let Some(hippo_url) = &notify_to {
+            // TODO: username and password
+            let hippo_client =
+                hippo::Client::new_from_login(hippo_url, "admin", "Passw0rd!").await?;
+            hippo_client
+                .register_revision_by_storage_id(
+                    &invoice.bindle.id.name(),
+                    &invoice.bindle.id.version_string(),
+                )
+                .await?;
+        }
     }
 
+    // TODO: handle case where push succeeded but notify failed
     match output_format {
         OutputFormat::None => (),
         OutputFormat::Id => println!("{}", &invoice.bindle.id),

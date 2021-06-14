@@ -14,6 +14,7 @@ clap = { version = "3.0.0-beta.2" }
 dunce = "1.0"
 futures = "0.3.14"
 glob = "0.3.0"
+hippo = { path = "../hippo-client-rust" }
 itertools = "0.10.0"
 mime_guess = { version = "2.0" }
 semver = { version = "0.11", features = ["serde"] }

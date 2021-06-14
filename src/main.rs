@@ -5,6 +5,7 @@ use hippofacts::HippoFacts;
 mod bindle_pusher;
 mod bindle_writer;
 mod expander;
+mod hippo_notifier;
 mod hippofacts;
 
 const ARG_HIPPOFACTS: &str = "hippofacts_path";
@@ -156,15 +157,7 @@ async fn run(
     if let Some(url) = &push_to {
         bindle_pusher::push_all(&destination, &invoice.bindle.id, &url).await?;
         if let Some(hippo_url) = &notify_to {
-            // TODO: username and password
-            let hippo_client =
-                hippo::Client::new_from_login(hippo_url, "admin", "Passw0rd!").await?;
-            hippo_client
-                .register_revision_by_storage_id(
-                    &invoice.bindle.id.name(),
-                    &invoice.bindle.id.version_string(),
-                )
-                .await?;
+            hippo_notifier::register(&invoice.bindle.id, &hippo_url).await?;
         }
     }
 

@@ -190,22 +190,33 @@ or `signature` features.  It does not yet support push options other than the se
 ## Running hippofactory
 
 As a developer you can run `hippofactory .` in your `HIPPOFACTS` directory to assemble all matching
-files and push them to the Bindle server specified in the `BINDLE_SERVER_URL` environment variable.
-(If you don't want to set the environment variable, pass the `-s` argument with the URL.)
-
-In this mode, `hippofactory`:
+files and publish them as a bindle. In this mode, `hippofactory`:
 
 * Mangles the version with a prerelease segment
 * Stages to a temporary directory
 * Pushes to the Bindle server
+* Notifies Hippo that a new bindle version is available
 
-If you want to review the proposed bindle rather than pushing it, pass `--prepare -d <staging_dir>`.
+The Bindle server is specified in the `BINDLE_SERVER_URL` environment variable.
+(If you don't want to set the environment variable, pass the `-s` argument with the URL.)
+
+The Hippo URL is specified in the `HIPPO_SERVICE_URL` environment variable. Hippo
+requires authentication: pass the username in `HIPPO_USERNAME` and the password in
+`HIPPO_PASSWORD`. (The equivalent command line options are `--hippo-url`, `--hippo-username`
+and `--hippo-password`.)
+
+If you want to review the proposed bindle rather than pushing it, pass `--action prepare -d <staging_dir>`.
 This will stage the bindle to the specified directory but _not_ push it.  (If you later want
-to push it, you can do so using the separate `bindle` tool.)
+to push it, you can do so using the separate `bindle` tool.) If you want to push the generated
+bindle but not notify Hippo, pass `--action bindle`.
 
 In a CI environment you can supply the `-v production` option to suppress version mangling.
 This will create and upload the bindle with the version from `HIPPOFACTS`, without the
 prerelease segment.
+
+If you want to skip server verification, pass the `-k` flag. This can be useful if you are running
+development services with self-signed certificates. **This is a security risk: do not use it in production.**
+
 ## Building from source
 
 * Known link failure on WSL: workaround is to build once with `RUSTFLAGS='-C opt-level=0' cargo build`

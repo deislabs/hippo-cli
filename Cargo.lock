@@ -509,7 +509,7 @@ dependencies = [
 [[package]]
 name = "hippo"
 version = "0.1.0"
-source = "git+https://github.com/deislabs/hippo-client-rust?branch=main#627c35b4a22860a016e9d4b8164036356cffe44a"
+source = "git+https://github.com/deislabs/hippo-client-rust?branch=main#8169d670ecb289a1e248f850d739acacddfd3ce5"
 dependencies = [
  "anyhow",
  "reqwest",

@@ -17,6 +17,7 @@ const ARG_HIPPO_URL: &str = "hippo_url";
 const ARG_HIPPO_USERNAME: &str = "hippo_username";
 const ARG_HIPPO_PASSWORD: &str = "hippo_password";
 const ARG_ACTION: &str = "action";
+const ARG_INSECURE: &str = "insecure";
 
 const ACTION_ALL: &str = "all";
 const ACTION_BINDLE: &str = "bindle";
@@ -98,6 +99,14 @@ async fn main() -> anyhow::Result<()> {
                 .long("action")
                 .about("What action to take with the generated bindle"),
         )
+        .arg(
+            clap::Arg::new(ARG_INSECURE)
+                .required(false)
+                .takes_value(false)
+                .short('k')
+                .long("insecure")
+                .about("If set, ignore server certificate errors"),
+        )
         .get_matches();
 
     let hippofacts_arg = args
@@ -119,6 +128,7 @@ async fn main() -> anyhow::Result<()> {
 
     let notify_to = hippo_url.map(|url| hippo_notifier::ConnectionInfo {
         url,
+        danger_accept_invalid_certs: args.is_present(ARG_INSECURE),
         username: hippo_username.unwrap().to_owned(), // Known to be set if the URL is
         password: hippo_password.unwrap().to_owned(),
     });

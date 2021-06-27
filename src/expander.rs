@@ -182,7 +182,7 @@ fn try_convert_one_match_to_parcel(
     member_of: &str,
 ) -> anyhow::Result<Parcel> {
     match path {
-        Err(e) => Err(anyhow::Error::new(e)),
+        Err(e) => Err(anyhow::anyhow!("Couldn't expand pattern: {}", e)),
         Ok(path) => {
             let features = vec![("file", "true")];
             convert_one_match_to_parcel(path, expansion_context, features, Some(member_of), None)

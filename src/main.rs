@@ -183,8 +183,7 @@ async fn run(
     };
     let writer = BindleWriter::new(&source_dir, &destination);
 
-    let content = std::fs::read_to_string(&source)?;
-    let spec = toml::from_str::<HippoFacts>(&content)?;
+    let spec = read_hippofacts_from(source)?;
     let invoice = expander::expand(&spec, &expansion_context)?;
     writer.write(&invoice).await?;
 
@@ -214,6 +213,21 @@ async fn run(
     }
 
     Ok(())
+}
+
+fn read_hippofacts_from(source: impl AsRef<std::path::Path>) -> anyhow::Result<HippoFacts> {
+    let read_result = {
+        let content = std::fs::read_to_string(&source)?;
+        let spec = toml::from_str::<HippoFacts>(&content)?;
+        Ok(spec)
+    };
+    read_result.map_err(|e: anyhow::Error| {
+        anyhow::anyhow!(
+            "Error parsing {} as a Hippo artifacts file: {}",
+            source.as_ref().to_string_lossy(),
+            e
+        )
+    })
 }
 
 enum OutputFormat {

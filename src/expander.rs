@@ -197,36 +197,44 @@ fn convert_one_match_to_parcel(
     member_of: Option<&str>,
     requires: Option<&str>,
 ) -> anyhow::Result<Parcel> {
-    let mut file = std::fs::File::open(&path)?;
+    let parcel = {
+        let mut file = std::fs::File::open(&path)?;
 
-    let name = expansion_context.to_relative(&path)?;
-    let size = file.metadata()?.len();
+        let name = expansion_context.to_relative(&path)?;
+        let size = file.metadata()?.len();
 
-    let mut sha = Sha256::new();
-    std::io::copy(&mut file, &mut sha)?;
-    let digest_value = sha.finalize();
-    let digest_string = format!("{:x}", digest_value);
+        let mut sha = Sha256::new();
+        std::io::copy(&mut file, &mut sha)?;
+        let digest_value = sha.finalize();
+        let digest_string = format!("{:x}", digest_value);
 
-    let media_type = mime_guess::from_path(&path)
-        .first_or_octet_stream()
-        .to_string();
+        let media_type = mime_guess::from_path(&path)
+            .first_or_octet_stream()
+            .to_string();
 
-    // let features = vec![("route", route)];
-    let feature = Some(wagi_feature_of(wagi_features));
+        let feature = Some(wagi_feature_of(wagi_features));
 
-    Ok(Parcel {
-        label: Label {
-            name,
-            sha256: digest_string,
-            media_type,
-            size,
-            feature,
-            ..Label::default()
-        },
-        conditions: Some(Condition {
-            member_of: vector_of(member_of),
-            requires: vector_of(requires),
-        }),
+        Ok(Parcel {
+            label: Label {
+                name,
+                sha256: digest_string,
+                media_type,
+                size,
+                feature,
+                ..Label::default()
+            },
+            conditions: Some(Condition {
+                member_of: vector_of(member_of),
+                requires: vector_of(requires),
+            }),
+        })
+    };
+    parcel.map_err(|e: anyhow::Error| {
+        anyhow::anyhow!(
+            "Could not assemble parcel for file {}: {}",
+            path.to_string_lossy(),
+            e
+        )
     })
 }
 

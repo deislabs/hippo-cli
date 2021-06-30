@@ -216,11 +216,12 @@ async fn run(
 }
 
 fn read_hippofacts_from(source: impl AsRef<std::path::Path>) -> anyhow::Result<HippoFacts> {
-    let read_result = {
+    // Immediate-call closure lets us use the try operator
+    let read_result = (|| {
         let content = std::fs::read_to_string(&source)?;
         let spec = toml::from_str::<HippoFacts>(&content)?;
         Ok(spec)
-    };
+    })();
     read_result.map_err(|e: anyhow::Error| {
         anyhow::anyhow!(
             "Error parsing {} as a Hippo artifacts file: {}",

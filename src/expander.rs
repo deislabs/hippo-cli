@@ -197,7 +197,8 @@ fn convert_one_match_to_parcel(
     member_of: Option<&str>,
     requires: Option<&str>,
 ) -> anyhow::Result<Parcel> {
-    let parcel = {
+    // Immediate-call closure allows us to use the try operator
+    let parcel = (|| {
         let mut file = std::fs::File::open(&path)?;
 
         let name = expansion_context.to_relative(&path)?;
@@ -228,7 +229,7 @@ fn convert_one_match_to_parcel(
                 requires: vector_of(requires),
             }),
         })
-    };
+    })();
     parcel.map_err(|e: anyhow::Error| {
         anyhow::anyhow!(
             "Could not assemble parcel for file {}: {}",

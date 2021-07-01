@@ -66,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
                 .required_if_eq_any(&[(ARG_ACTION, ACTION_ALL), (ARG_ACTION, ACTION_BINDLE)])
                 .short('s')
                 .long("server")
-                .env("BINDLE_SERVER_URL")
+                .env("BINDLE_URL")
                 .about("The Bindle server to push the artifacts to")
         )
         .arg(

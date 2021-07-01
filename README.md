@@ -197,7 +197,7 @@ files and publish them as a bindle. In this mode, `hippofactory`:
 * Pushes to the Bindle server
 * Notifies Hippo that a new bindle version is available
 
-The Bindle server is specified in the `BINDLE_SERVER_URL` environment variable.
+The Bindle server is specified in the `BINDLE_URL` environment variable.
 (If you don't want to set the environment variable, pass the `-s` argument with the URL.)
 
 The Hippo URL is specified in the `HIPPO_SERVICE_URL` environment variable. Hippo

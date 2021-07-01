@@ -200,7 +200,7 @@ files and publish them as a bindle. In this mode, `hippofactory`:
 The Bindle server is specified in the `BINDLE_URL` environment variable.
 (If you don't want to set the environment variable, pass the `-s` argument with the URL.)
 
-The Hippo URL is specified in the `HIPPO_SERVICE_URL` environment variable. Hippo
+The Hippo URL is specified in the `HIPPO_URL` environment variable. Hippo
 requires authentication: pass the username in `HIPPO_USERNAME` and the password in
 `HIPPO_PASSWORD`. (The equivalent command line options are `--hippo-url`, `--hippo-username`
 and `--hippo-password`.)

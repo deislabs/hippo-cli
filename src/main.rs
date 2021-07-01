@@ -73,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
             clap::Arg::new(ARG_HIPPO_URL)
                 .required_if_eq(ARG_ACTION, ACTION_ALL)
                 .long("hippo-url")
-                .env("HIPPO_SERVICE_URL")
+                .env("HIPPO_URL")
                 .about("The Hippo service to push the artifacts to")
         )
         .arg(

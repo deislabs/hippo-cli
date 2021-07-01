@@ -66,14 +66,14 @@ async fn main() -> anyhow::Result<()> {
                 .required_if_eq_any(&[(ARG_ACTION, ACTION_ALL), (ARG_ACTION, ACTION_BINDLE)])
                 .short('s')
                 .long("server")
-                .env("BINDLE_SERVER_URL")
+                .env("BINDLE_URL")
                 .about("The Bindle server to push the artifacts to")
         )
         .arg(
             clap::Arg::new(ARG_HIPPO_URL)
                 .required_if_eq(ARG_ACTION, ACTION_ALL)
                 .long("hippo-url")
-                .env("HIPPO_SERVICE_URL")
+                .env("HIPPO_URL")
                 .about("The Hippo service to push the artifacts to")
         )
         .arg(

@@ -8,6 +8,7 @@ use glob::GlobError;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
+use crate::hippofacts::HandlerModule;
 use crate::{hippofacts::Handler, HippoFacts};
 
 pub struct ExpansionContext {
@@ -118,7 +119,9 @@ fn expand_to_group(handler: &Handler) -> Group {
 }
 
 fn group_name(handler: &Handler) -> String {
-    format!("{}-files", handler.name)
+    match &handler.handler_module {
+        HandlerModule::File(name) => format!("{}-files", name)
+    }
 }
 
 fn expand_handler_modules_to_parcels(
@@ -127,13 +130,16 @@ fn expand_handler_modules_to_parcels(
 ) -> anyhow::Result<Vec<Parcel>> {
     let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
     let parcels = handlers.iter().map(|handler| {
-        convert_one_match_to_parcel(
-            PathBuf::from(expansion_context.to_absolute(&handler.name)),
-            expansion_context,
-            vec![("route", &handler.route), ("file", "false")],
-            None,
-            Some(&group_name(handler)),
-        )
+        match &handler.handler_module {
+            HandlerModule::File(name) =>
+                convert_one_match_to_parcel(
+                    PathBuf::from(expansion_context.to_absolute(&name)),
+                    expansion_context,
+                    vec![("route", &handler.route), ("file", "false")],
+                    None,
+                    Some(&group_name(handler)),
+                )
+        }
     });
     parcels.collect()
 }
@@ -348,9 +354,7 @@ mod test {
     }
 
     fn read_hippofacts(path: impl AsRef<Path>) -> anyhow::Result<HippoFacts> {
-        let toml_text = std::fs::read_to_string(path)?;
-        let hippofacts: HippoFacts = toml::from_str(&toml_text)?;
-        Ok(hippofacts)
+        HippoFacts::read_from(path)
     }
 
     fn parcel_named<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Parcel {

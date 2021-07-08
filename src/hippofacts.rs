@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, convert::TryFrom};
 
 // type FeatureMap = BTreeMap<String, BTreeMap<String, String>>;
 
@@ -25,9 +25,17 @@ pub struct BindleSpec {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RawHandler {
-    pub name: String,
+    pub name: Option<String>,
+    pub external: Option<ExternalRef>,
     pub route: String,
     pub files: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ExternalRef {
+    pub bindle_id: String,
+    pub handler_id: String,
 }
 
 pub struct HippoFacts {
@@ -44,6 +52,7 @@ pub struct Handler {
 
 pub enum HandlerModule {
     File(String),
+    External(ExternalRef),
 }
 
 impl HippoFacts {
@@ -52,7 +61,7 @@ impl HippoFacts {
         let read_result = (|| {
             let content = std::fs::read_to_string(&source)?;
             let spec = toml::from_str::<RawHippoFacts>(&content)?;
-            Ok(Self::from(&spec))
+            Self::try_from(&spec)
         })();
         read_result.map_err(|e: anyhow::Error| {
             anyhow::anyhow!(
@@ -64,23 +73,33 @@ impl HippoFacts {
     }
 }
 
-impl From<&RawHippoFacts> for HippoFacts {
-    fn from(raw: &RawHippoFacts) -> Self {
-        Self {
+impl TryFrom<&RawHippoFacts> for HippoFacts {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: &RawHippoFacts) -> anyhow::Result<Self> {
+        let handler: Option<anyhow::Result<Vec<_>>> = raw.handler.as_ref().map(|v| v.iter().map(Handler::try_from).collect());
+        Ok(Self {
             bindle: raw.bindle.clone(),
             annotations: raw.annotations.clone(),
-            handler: raw.handler.as_ref().map(|v| v.iter().map(Handler::from).collect()),
-        }
+            handler: handler.transpose()?,
+        })
     }
 }
 
-impl From<&RawHandler> for Handler {
-    fn from(raw: &RawHandler) -> Handler {
-        Self {
-            handler_module: HandlerModule::File(raw.name.clone()),
+impl TryFrom<&RawHandler> for Handler {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: &RawHandler) -> anyhow::Result<Handler> {
+        let handler_module = match (&raw.name, &raw.external) {
+            (Some(name), None) => Ok(HandlerModule::File(name.clone())),
+            (None, Some(external_ref)) => Ok(HandlerModule::External(external_ref.clone())),
+            _ => Err(anyhow::anyhow!("Route '{}' must specify exactly one of 'name' and 'external'", raw.route)),
+        }?;
+        Ok(Self {
+            handler_module,
             route: raw.route.clone(),
             files: raw.files.clone(),
-        }
+        })
     }
 }
 
@@ -90,7 +109,7 @@ mod test {
 
     #[test]
     fn test_can_read_hippo_facts() {
-        let facts: RawHippoFacts = toml::from_str(
+        let raw: RawHippoFacts = toml::from_str(
             r#"
         # HIPPO FACT: the North American house hippo is found across Canada and the Eastern US
         [bindle]
@@ -108,6 +127,7 @@ mod test {
         "#,
         )
         .expect("error parsing test TOML");
+        let facts = HippoFacts::try_from(&raw).expect("error parsing raw to HF");
 
         assert_eq!("birds", &facts.bindle.name);
         assert_eq!(&None, &facts.annotations);
@@ -116,12 +136,20 @@ mod test {
 
         assert_eq!(2, handlers.len());
 
-        assert_eq!("penguin.wasm", &handlers[0].name);
+        if let HandlerModule::File(name) = &handlers[0].handler_module {
+            assert_eq!("penguin.wasm", name);
+        } else {
+            assert!(false, "handler 0 should have been File");
+        }
         assert_eq!("/birds/flightless", &handlers[0].route);
         let files0 = handlers[0].files.as_ref().expect("Expected files");
         assert_eq!(3, files0.len());
 
-        assert_eq!("cassowary.wasm", &handlers[1].name);
+        if let HandlerModule::File(name) = &handlers[1].handler_module {
+            assert_eq!("cassowary.wasm", name);
+        } else {
+            assert!(false, "handler 0 should have been File");
+        }
         assert_eq!("/birds/savage/rending", &handlers[1].route);
         assert_eq!(None, handlers[1].files);
     }

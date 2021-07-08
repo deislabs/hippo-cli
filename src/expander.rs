@@ -120,7 +120,8 @@ fn expand_to_group(handler: &Handler) -> Group {
 
 fn group_name(handler: &Handler) -> String {
     match &handler.handler_module {
-        HandlerModule::File(name) => format!("{}-files", name)
+        HandlerModule::File(name) => format!("{}-files", name),
+        HandlerModule::External(_) => panic!("TODO: external refs"),
     }
 }
 
@@ -129,20 +130,29 @@ fn expand_handler_modules_to_parcels(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
     let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
-    let parcels = handlers.iter().map(|handler| {
-        match &handler.handler_module {
-            HandlerModule::File(name) =>
-                convert_one_match_to_parcel(
-                    PathBuf::from(expansion_context.to_absolute(&name)),
-                    expansion_context,
-                    vec![("route", &handler.route), ("file", "false")],
-                    None,
-                    Some(&group_name(handler)),
-                )
-        }
-    });
+    let parcels = handlers.iter().map(|handler| expand_one_handler_module_to_parcel(handler, expansion_context));
     parcels.collect()
 }
+
+fn expand_one_handler_module_to_parcel(
+    handler: &Handler,
+    expansion_context: &ExpansionContext
+) -> anyhow::Result<Parcel> {
+    match &handler.handler_module {
+        HandlerModule::File(name) =>
+            convert_one_match_to_parcel(
+                PathBuf::from(expansion_context.to_absolute(&name)),
+                expansion_context,
+                vec![("route", &handler.route), ("file", "false")],
+                None,
+                Some(&group_name(handler)),
+            ),
+        HandlerModule::External(_) =>
+            Err(anyhow::anyhow!("TODO: support external references")),
+    }
+}
+
+// TODO: also expand all imports' dependency groups to parcels
 
 fn expand_all_files_to_parcels(
     hippofacts: &HippoFacts,

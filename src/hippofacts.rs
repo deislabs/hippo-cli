@@ -26,14 +26,14 @@ pub struct BindleSpec {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RawHandler {
     pub name: Option<String>,
-    pub external: Option<ExternalRef>,
+    pub external: Option<RawExternalRef>,
     pub route: String,
     pub files: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct ExternalRef {
+struct RawExternalRef {
     pub bindle_id: String,
     pub handler_id: String,
 }
@@ -53,6 +53,11 @@ pub struct Handler {
 pub enum HandlerModule {
     File(String),
     External(ExternalRef),
+}
+
+pub struct ExternalRef {
+    pub bindle_id: bindle::Id,
+    pub handler_id: String,
 }
 
 impl HippoFacts {
@@ -93,13 +98,25 @@ impl TryFrom<&RawHandler> for Handler {
     fn try_from(raw: &RawHandler) -> anyhow::Result<Handler> {
         let handler_module = match (&raw.name, &raw.external) {
             (Some(name), None) => Ok(HandlerModule::File(name.clone())),
-            (None, Some(external_ref)) => Ok(HandlerModule::External(external_ref.clone())),
+            (None, Some(external_ref)) => Ok(HandlerModule::External(ExternalRef::try_from(external_ref)?)),
             _ => Err(anyhow::anyhow!("Route '{}' must specify exactly one of 'name' and 'external'", raw.route)),
         }?;
         Ok(Self {
             handler_module,
             route: raw.route.clone(),
             files: raw.files.clone(),
+        })
+    }
+}
+
+impl TryFrom<&RawExternalRef> for ExternalRef {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: &RawExternalRef) -> anyhow::Result<ExternalRef> {
+        let bindle_id = bindle::Id::try_from(&raw.bindle_id)?;
+        Ok(Self {
+            bindle_id,
+            handler_id: raw.handler_id.clone(),
         })
     }
 }
@@ -153,9 +170,28 @@ mod test {
         if let HandlerModule::File(name) = &handlers[1].handler_module {
             assert_eq!("cassowary.wasm", name);
         } else {
-            assert!(false, "handler 0 should have been File");
+            assert!(false, "handler 1 should have been File");
         }
         assert_eq!("/birds/savage/rending", &handlers[1].route);
         assert_eq!(None, handlers[1].files);
+    }
+
+    #[test]
+    fn test_parse_externals() {
+        let facts = HippoFacts::read_from("./testdata/external/HIPPOFACTS").expect("error reading facts file");
+
+        assert_eq!("toastbattle", &facts.bindle.name);
+
+        let handlers = &facts.handler;
+
+        assert_eq!(2, handlers.len());
+
+        if let HandlerModule::External(ext) = &handlers[1].handler_module {
+            assert_eq!("deislabs/fileserver", ext.bindle_id.name());
+            assert_eq!("1.0.3", ext.bindle_id.version_string());
+            assert_eq!("static", ext.handler_id);
+        } else {
+            assert!(false, "handler 1 should have been External");
+        }
     }
 }

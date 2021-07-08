@@ -8,7 +8,7 @@ use glob::GlobError;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
-use crate::hippofacts::HandlerModule;
+use crate::hippofacts::{ExternalRef, HandlerModule};
 use crate::{hippofacts::Handler, HippoFacts};
 
 pub struct ExpansionContext {
@@ -119,7 +119,7 @@ fn expand_to_group(handler: &Handler) -> Group {
 fn group_name(handler: &Handler) -> String {
     match &handler.handler_module {
         HandlerModule::File(name) => format!("{}-files", name),
-        HandlerModule::External(_) => panic!("TODO: external refs"),
+        HandlerModule::External(ext) => format!("import:{}:{}-at-{}-files", ext.bindle_id, ext.handler_id, &handler.route),
     }
 }
 
@@ -144,8 +144,14 @@ fn expand_one_handler_module_to_parcel(
                 None,
                 Some(&group_name(handler)),
             ),
-        HandlerModule::External(_) =>
-            Err(anyhow::anyhow!("TODO: support external references")),
+        HandlerModule::External(external_ref) =>
+            convert_one_ref_to_parcel(
+                external_ref,
+                expansion_context,
+                vec![("route", &handler.route), ("file", "false")],
+                None,
+                Some(&group_name(handler)),
+            ),
     }
 }
 
@@ -246,6 +252,56 @@ fn convert_one_match_to_parcel(
         anyhow::anyhow!(
             "Could not assemble parcel for file {}: {}",
             path.to_string_lossy(),
+            e
+        )
+    })
+}
+
+fn convert_one_ref_to_parcel(
+    external_ref: &ExternalRef,
+    expansion_context: &ExpansionContext,
+    wagi_features: Vec<(&str, &str)>,
+    member_of: Option<&str>,
+    requires: Option<&str>,
+) -> anyhow::Result<Parcel> {
+    // Immediate-call closure allows us to use the try operator
+    let parcel = (|| {
+        // let mut file = std::fs::File::open(&path)?;
+
+        // let name = expansion_context.to_relative(&path)?;
+        // let size = file.metadata()?.len();
+
+        // let mut sha = Sha256::new();
+        // std::io::copy(&mut file, &mut sha)?;
+        // let digest_value = sha.finalize();
+        // let digest_string = format!("{:x}", digest_value);
+
+        // let media_type = mime_guess::from_path(&path)
+        //     .first_or_octet_stream()
+        //     .to_string();
+
+        let feature = Some(wagi_feature_of(wagi_features));
+
+        Ok(Parcel {
+            label: Label {
+                name,
+                sha256: digest_string,
+                media_type,
+                size,
+                feature,
+                ..Label::default()
+            },
+            conditions: Some(Condition {
+                member_of: vector_of(member_of),
+                requires: vector_of(requires),
+            }),
+        })
+    })();
+    parcel.map_err(|e: anyhow::Error| {
+        anyhow::anyhow!(
+            "Could not assemble parcel for external ref {}:{}: {}",
+            external_ref.bindle_id,
+            external_ref.handler_id,
             e
         )
     })
@@ -579,5 +635,12 @@ mod test {
             .iter()
             .filter(|parcel| parcel.conditions.as_ref().unwrap().member_of.is_some());
         assert_eq!(1, asset_parcel.count());
+    }
+
+    #[test]
+    fn test_externals_are_surfaced_as_parcels() {
+        let invoice = expand_test_invoice("external").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        assert_eq!(5, parcels.len());  // 1 local handler, 1 ext handler, 3 asset files
     }
 }

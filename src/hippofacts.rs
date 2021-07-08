@@ -41,7 +41,7 @@ pub struct ExternalRef {
 pub struct HippoFacts {
     pub bindle: BindleSpec,
     pub annotations: Option<AnnotationMap>,
-    pub handler: Option<Vec<Handler>>,
+    pub handler: Vec<Handler>,
 }
 
 pub struct Handler {
@@ -77,11 +77,12 @@ impl TryFrom<&RawHippoFacts> for HippoFacts {
     type Error = anyhow::Error;
 
     fn try_from(raw: &RawHippoFacts) -> anyhow::Result<Self> {
-        let handler: Option<anyhow::Result<Vec<_>>> = raw.handler.as_ref().map(|v| v.iter().map(Handler::try_from).collect());
+        let handler_vec = raw.handler.as_ref().ok_or_else(no_handlers)?;
+        let handler: anyhow::Result<Vec<_>> = handler_vec.iter().map(Handler::try_from).collect();
         Ok(Self {
             bindle: raw.bindle.clone(),
             annotations: raw.annotations.clone(),
-            handler: handler.transpose()?,
+            handler: handler?,
         })
     }
 }
@@ -101,6 +102,10 @@ impl TryFrom<&RawHandler> for Handler {
             files: raw.files.clone(),
         })
     }
+}
+
+fn no_handlers() -> anyhow::Error {
+    anyhow::anyhow!("No handlers defined in artifact spec")
 }
 
 #[cfg(test)]
@@ -132,7 +137,7 @@ mod test {
         assert_eq!("birds", &facts.bindle.name);
         assert_eq!(&None, &facts.annotations);
 
-        let handlers = &facts.handler.expect("Expected handlers");
+        let handlers = &facts.handler;
 
         assert_eq!(2, handlers.len());
 

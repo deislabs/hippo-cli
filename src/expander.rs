@@ -102,8 +102,6 @@ fn expand_id(
 fn expand_all_handlers_to_groups(hippofacts: &HippoFacts) -> anyhow::Result<Vec<Group>> {
     let groups = hippofacts
         .handler
-        .as_ref()
-        .ok_or_else(no_handlers)?
         .iter()
         .map(expand_to_group)
         .collect();
@@ -129,8 +127,7 @@ fn expand_handler_modules_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
-    let parcels = handlers.iter().map(|handler| expand_one_handler_module_to_parcel(handler, expansion_context));
+    let parcels = hippofacts.handler.iter().map(|handler| expand_one_handler_module_to_parcel(handler, expansion_context));
     parcels.collect()
 }
 
@@ -158,8 +155,7 @@ fn expand_all_files_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
-    let parcel_lists = handlers
+    let parcel_lists = hippofacts.handler
         .iter()
         .map(|handler| expand_files_to_parcels(handler, expansion_context));
     let parcels = flatten_or_fail(parcel_lists)?;
@@ -323,10 +319,6 @@ fn current_user() -> Option<String> {
     std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .ok()
-}
-
-fn no_handlers() -> anyhow::Error {
-    anyhow::anyhow!("No handlers defined in artifact spec")
 }
 
 fn file_id(parcel: &Parcel) -> String {

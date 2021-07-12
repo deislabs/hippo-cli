@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bindle_writer::BindleWriter;
 use expander::{ExpansionContext, InvoiceVersioning};
-use hippofacts::HippoFacts;
+use hippofacts::{Handler, HandlerModule, HippoFacts};
 
 mod bindle_pusher;
 mod bindle_writer;
@@ -183,7 +183,7 @@ async fn run(
         .to_path_buf();
 
     // Do this outside the `expand` function so `expand` is more testable
-    let external_invoices = prefetch_required_invoices(&spec).await?;
+    let external_invoices = prefetch_required_invoices(&spec, &push_to).await?;
 
     let expansion_context = ExpansionContext {
         relative_to: source_dir.clone(),
@@ -226,9 +226,31 @@ async fn run(
 
 async fn prefetch_required_invoices(
     hippofacts: &HippoFacts,
+    bindle_url: &Option<String>,
 ) -> anyhow::Result<HashMap<bindle::Id, bindle::Invoice>> {
-    // TODO: actually load things
-    Ok(HashMap::new())
+    let mut map = HashMap::new();
+
+    let external_refs: Vec<bindle::Id> = hippofacts.handler.iter().flat_map(external_bindle_id).collect();
+    if external_refs.is_empty() {
+        return Ok(map);
+    }
+
+    let base_url = bindle_url.as_ref().ok_or_else(|| anyhow::anyhow!("Spec file contains external references but Bindle server URL is not set"))?;
+    let client = bindle::client::Client::new(base_url)?;
+
+    for external_ref in external_refs {
+        let invoice = client.get_yanked_invoice(&external_ref).await?;
+        map.insert(external_ref, invoice);
+    }
+
+    Ok(map)
+}
+
+fn external_bindle_id(handler: &Handler) -> Option<bindle::Id> {
+    match &handler.handler_module {
+        HandlerModule::External(ext) => Some(ext.bindle_id.clone()),
+        _ => None,
+    }
 }
 
 enum OutputFormat {

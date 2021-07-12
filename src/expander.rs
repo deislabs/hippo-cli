@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
@@ -14,6 +14,7 @@ use crate::{hippofacts::Handler, HippoFacts};
 pub struct ExpansionContext {
     pub relative_to: PathBuf,
     pub invoice_versioning: InvoiceVersioning,
+    pub external_invoices: HashMap<bindle::Id, Invoice>,
 }
 
 impl ExpansionContext {
@@ -266,28 +267,19 @@ fn convert_one_ref_to_parcel(
 ) -> anyhow::Result<Parcel> {
     // Immediate-call closure allows us to use the try operator
     let parcel = (|| {
-        // let mut file = std::fs::File::open(&path)?;
-
-        // let name = expansion_context.to_relative(&path)?;
-        // let size = file.metadata()?.len();
-
-        // let mut sha = Sha256::new();
-        // std::io::copy(&mut file, &mut sha)?;
-        // let digest_value = sha.finalize();
-        // let digest_string = format!("{:x}", digest_value);
-
-        // let media_type = mime_guess::from_path(&path)
-        //     .first_or_octet_stream()
-        //     .to_string();
+        // We don't need to give the IDs in these messages because these will be prepended when
+        // mapping errors that escape the closure (the parcel.map_err below)
+        let invoice = expansion_context.external_invoices.get(&external_ref.bindle_id).ok_or_else(|| anyhow::anyhow!("external invoice not found on server"))?;
+        let parcel = find_handler_parcel(invoice, &external_ref.handler_id).ok_or_else(|| anyhow::anyhow!("external invoice does not contain specified parcel"))?;
 
         let feature = Some(wagi_feature_of(wagi_features));
 
         Ok(Parcel {
             label: Label {
-                name,
-                sha256: digest_string,
-                media_type,
-                size,
+                name: parcel.label.name.clone(),
+                sha256: parcel.label.sha256.clone(),
+                media_type: parcel.label.media_type.clone(),
+                size: parcel.label.size,
                 feature,
                 ..Label::default()
             },
@@ -305,6 +297,11 @@ fn convert_one_ref_to_parcel(
             e
         )
     })
+}
+
+fn find_handler_parcel<'a>(invoice: &'a Invoice, handler_id: &'a str) -> Option<&'a Parcel> {
+    // TODO: find the actual parcel
+    invoice.parcel.as_ref().and_then(|ps| Some(&ps[0]))
 }
 
 fn merge_memberships(parcels: Vec<Parcel>) -> Vec<Parcel> {
@@ -457,9 +454,45 @@ mod test {
         let expansion_context = ExpansionContext {
             relative_to: dir,
             invoice_versioning: InvoiceVersioning::Production,
+            external_invoices: external_test_invoices(),
         };
         let invoice = expand(&hippofacts, &expansion_context).expect("error expanding");
         Ok(invoice)
+    }
+
+    fn external_test_invoices() -> HashMap<bindle::Id, Invoice> {
+        let mut invoices = HashMap::new();
+
+        let fs_id = bindle::Id::from_str("deislabs/fileserver/1.0.3").unwrap();
+        let fs_parcels = vec![
+            Parcel {
+                label: Label {
+                    name: "file_server.gr.wasm".to_owned(),
+                    sha256: "123456789".to_owned(),
+                    media_type: "application/wasm".to_owned(),
+                    size: 100,
+                    annotations: Some(vec![("wagi.handler_id".to_owned(), "static".to_owned())].into_iter().collect()),
+                    feature: None,
+                },
+                conditions: None
+            }
+        ];
+        let fs_invoice = Invoice {
+            bindle_version: "1.0.0".to_owned(),
+            yanked: None,
+            bindle: bindle::BindleSpec {
+                id: fs_id.clone(),
+                description: None,
+                authors: None,
+            },
+            annotations: None,
+            parcel: Some(fs_parcels),
+            group: None,
+            signature: None,
+        };
+        invoices.insert(fs_id.clone(), fs_invoice);
+
+        invoices
     }
 
     #[test]
@@ -641,6 +674,10 @@ mod test {
     fn test_externals_are_surfaced_as_parcels() {
         let invoice = expand_test_invoice("external").unwrap();
         let parcels = invoice.parcel.as_ref().unwrap();
-        assert_eq!(5, parcels.len());  // 1 local handler, 1 ext handler, 3 asset files
+        let ext_parcel = parcel_named(&invoice, "file_server.gr.wasm");
+        assert_eq!("123456789", ext_parcel.label.sha256);
+        assert_eq!("application/wasm", ext_parcel.label.media_type);
+        assert_eq!(100, ext_parcel.label.size);
+        // TODO: assert_eq!(5, parcels.len());  // 1 local handler, 1 ext handler, 3 asset files
     }
 }

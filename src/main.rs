@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bindle_writer::BindleWriter;
 use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::HippoFacts;
@@ -172,19 +174,26 @@ async fn run(
     push_to: Option<String>,
     notify_to: Option<hippo_notifier::ConnectionInfo>,
 ) -> anyhow::Result<()> {
+    let spec = HippoFacts::read_from(&source)?;
+
     let source_dir = source
         .as_ref()
         .parent()
         .ok_or_else(|| anyhow::Error::msg("Can't establish source directory"))?
         .to_path_buf();
+
+    // Do this outside the `expand` function so `expand` is more testable
+    let external_invoices = prefetch_required_invoices(&spec).await?;
+
     let expansion_context = ExpansionContext {
         relative_to: source_dir.clone(),
         invoice_versioning,
+        external_invoices,
     };
-    let writer = BindleWriter::new(&source_dir, &destination);
 
-    let spec = HippoFacts::read_from(source)?;
     let invoice = expander::expand(&spec, &expansion_context)?;
+
+    let writer = BindleWriter::new(&source_dir, &destination);
     writer.write(&invoice).await?;
 
     if let Some(url) = &push_to {
@@ -213,6 +222,13 @@ async fn run(
     }
 
     Ok(())
+}
+
+async fn prefetch_required_invoices(
+    hippofacts: &HippoFacts,
+) -> anyhow::Result<HashMap<bindle::Id, bindle::Invoice>> {
+    // TODO: actually load things
+    Ok(HashMap::new())
 }
 
 enum OutputFormat {

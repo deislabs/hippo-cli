@@ -300,8 +300,17 @@ fn convert_one_ref_to_parcel(
 }
 
 fn find_handler_parcel<'a>(invoice: &'a Invoice, handler_id: &'a str) -> Option<&'a Parcel> {
-    // TODO: find the actual parcel
-    invoice.parcel.as_ref().and_then(|ps| Some(&ps[0]))
+    match invoice.parcel.as_ref() {
+        None => None,
+        Some(parcels) => parcels.iter().find(|p| has_handler_id(p, handler_id)),
+    }
+}
+
+fn has_handler_id(parcel: &Parcel, handler_id: &str) -> bool {
+    match parcel.label.annotations.as_ref() {
+        None => false,
+        Some(map) => map.get("wagi.handler_id") == Some(&handler_id.to_owned()),
+    }
 }
 
 fn merge_memberships(parcels: Vec<Parcel>) -> Vec<Parcel> {
@@ -467,6 +476,17 @@ mod test {
         let fs_parcels = vec![
             Parcel {
                 label: Label {
+                    name: "experimental_file_server.gr.wasm".to_owned(),
+                    sha256: "987654".to_owned(),
+                    media_type: "application/wasm".to_owned(),
+                    size: 123,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: None
+            },
+            Parcel {
+                label: Label {
                     name: "file_server.gr.wasm".to_owned(),
                     sha256: "123456789".to_owned(),
                     media_type: "application/wasm".to_owned(),
@@ -476,6 +496,7 @@ mod test {
                 },
                 conditions: None
             }
+
         ];
         let fs_invoice = Invoice {
             bindle_version: "1.0.0".to_owned(),

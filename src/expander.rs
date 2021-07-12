@@ -694,7 +694,7 @@ mod test {
     #[test]
     fn test_externals_are_surfaced_as_parcels() {
         let invoice = expand_test_invoice("external").unwrap();
-        let parcels = invoice.parcel.as_ref().unwrap();
+        // let parcels = invoice.parcel.as_ref().unwrap();
         let ext_parcel = parcel_named(&invoice, "file_server.gr.wasm");
         assert_eq!("123456789", ext_parcel.label.sha256);
         assert_eq!("application/wasm", ext_parcel.label.media_type);

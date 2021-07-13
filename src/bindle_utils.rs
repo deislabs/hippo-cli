@@ -1,6 +1,7 @@
 use itertools::Itertools;
 
 pub trait ParcelHelpers {
+    fn has_annotation(&self, key: &str) -> bool;
     fn requires(&self) -> Vec<String>;
     fn is_member_of(&self, group: &str) -> bool;
 }
@@ -11,6 +12,13 @@ pub trait InvoiceHelpers {
 }
 
 impl ParcelHelpers for bindle::Parcel {
+    fn has_annotation(&self, key: &str) -> bool {
+        match self.label.annotations.as_ref() {
+            None => false,
+            Some(map) => map.contains_key(key),
+        }
+    }
+
     fn requires(&self) -> Vec<String> {
         match self.conditions.as_ref() {
             None => vec![],

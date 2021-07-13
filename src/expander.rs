@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 
-use bindle::{BindleSpec, Condition, Group, Invoice, Label, Parcel};
+use bindle::{AnnotationMap, BindleSpec, Condition, Group, Invoice, Label, Parcel};
 use glob::GlobError;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
@@ -198,7 +198,10 @@ fn expand_one_external_ref_dependencies_to_parcels(
             .ok_or_else(|| anyhow::anyhow!("external invoice does not contain specified parcel"))?;
         let required_parcels = invoice.parcels_required_by(&main_parcel);
         let parcel_copies = required_parcels.iter().map(|p| Parcel {
-            label: p.label.clone(),
+            label: Label {
+                annotations: annotation_do_not_stage_file(),
+                ..p.label.clone()
+            },
             conditions: Some(Condition {
                 member_of: Some(vec![dest_group_name.to_owned()]),
                 requires: None,
@@ -343,8 +346,8 @@ fn convert_one_ref_to_parcel(
                 sha256: parcel.label.sha256.clone(),
                 media_type: parcel.label.media_type.clone(),
                 size: parcel.label.size,
+                annotations: annotation_do_not_stage_file(),
                 feature,
-                ..Label::default()
             },
             conditions: Some(Condition {
                 member_of: vector_of(member_of),
@@ -465,6 +468,12 @@ fn feature_map_of(values: Vec<(&str, &str)>) -> BTreeMap<String, String> {
         .into_iter()
         .map(|(k, v)| (k.to_owned(), v.to_owned()))
         .collect()
+}
+
+fn annotation_do_not_stage_file() -> Option<AnnotationMap> {
+    let mut annotations = AnnotationMap::new();
+    annotations.insert("hippofactory_do_not_stage".to_owned(), "true".to_owned());
+    Some(annotations)
 }
 
 #[cfg(test)]

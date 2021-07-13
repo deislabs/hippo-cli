@@ -231,12 +231,18 @@ async fn prefetch_required_invoices(
 ) -> anyhow::Result<HashMap<bindle::Id, bindle::Invoice>> {
     let mut map = HashMap::new();
 
-    let external_refs: Vec<bindle::Id> = hippofacts.handler.iter().flat_map(external_bindle_id).collect();
+    let external_refs: Vec<bindle::Id> = hippofacts
+        .handler
+        .iter()
+        .flat_map(external_bindle_id)
+        .collect();
     if external_refs.is_empty() {
         return Ok(map);
     }
 
-    let base_url = bindle_url.as_ref().ok_or_else(|| anyhow::anyhow!("Spec file contains external references but Bindle server URL is not set"))?;
+    let base_url = bindle_url.as_ref().ok_or_else(|| {
+        anyhow::anyhow!("Spec file contains external references but Bindle server URL is not set")
+    })?;
     let client = bindle::client::Client::new(base_url)?;
 
     for external_ref in external_refs {

@@ -194,7 +194,7 @@ functions like serving static assets from the filesystem. To do this, rather tha
 copying the Wasm handler locally, you can reference it directly from your HIPPOFACTS.
 To do this:
 
-* The library parcel but have an annotation named `wagi.handler_id`. This is the ID by
+* The library parcel but have an annotation named `wagi_handler_id`. This is the ID by
   which HIPPOFACTS will refer to it - this decouples the reference from volatile details
   like parcel name or SHA.
 * Instead of a `name` in your `handler` table, you specify a `bindle_id` and `handler_id`.

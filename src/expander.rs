@@ -372,7 +372,7 @@ fn find_handler_parcel<'a>(invoice: &'a Invoice, handler_id: &'a str) -> Option<
 fn has_handler_id(parcel: &Parcel, handler_id: &str) -> bool {
     match parcel.label.annotations.as_ref() {
         None => false,
-        Some(map) => map.get("wagi.handler_id") == Some(&handler_id.to_owned()),
+        Some(map) => map.get("wagi_handler_id") == Some(&handler_id.to_owned()),
     }
 }
 
@@ -555,7 +555,7 @@ mod test {
                     media_type: "application/wasm".to_owned(),
                     size: 100,
                     annotations: Some(
-                        vec![("wagi.handler_id".to_owned(), "static".to_owned())]
+                        vec![("wagi_handler_id".to_owned(), "static".to_owned())]
                             .into_iter()
                             .collect(),
                     ),
@@ -570,7 +570,7 @@ mod test {
                     media_type: "application/wasm".to_owned(),
                     size: 234,
                     annotations: Some(
-                        vec![("wagi.handler_id".to_owned(), "image_gallery".to_owned())]
+                        vec![("wagi_handler_id".to_owned(), "image_gallery".to_owned())]
                             .into_iter()
                             .collect(),
                     ),

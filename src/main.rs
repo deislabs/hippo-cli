@@ -5,6 +5,7 @@ use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::{Handler, HandlerModule, HippoFacts};
 
 mod bindle_pusher;
+mod bindle_utils;
 mod bindle_writer;
 mod expander;
 mod hippo_notifier;

@@ -187,6 +187,33 @@ name = 'bin/kea.wasm-files'
 `hippofactory` does not currently support Bindle's `parcel.label.feature`
 or `signature` features.  It does not yet support push options other than the server URL (e.g. auth).
 
+### External handlers
+
+It is sometimes useful to have routes handled by 'library' parcels that perform common
+functions like serving static assets from the filesystem. To do this, rather than
+copying the Wasm handler locally, you can reference it directly from your HIPPOFACTS.
+To do this:
+
+* The library parcel but have an annotation named `wagi.handler_id`. This is the ID by
+  which HIPPOFACTS will refer to it - this decouples the reference from volatile details
+  like parcel name or SHA.
+* Instead of a `name` in your `handler` table, you specify a `bindle_id` and `handler_id`.
+
+For example:
+
+```toml
+[[handler]]
+external.bindleId = "deislabs/fileserver/1.0.0"
+external.handlerId = "static"
+route = "/images"
+files = ["birds/*.jpg"]
+```
+
+Hippofactory will locate the specified `handler_id` in the given bindle, and create a
+parcel in your invoice that points to the same blob but with a `requires` condition for
+the handler group. It also creates parcels for any parcels that the handler `requires`
+in its original bindle.
+
 ## Running hippofactory
 
 As a developer you can run `hippofactory .` in your `HIPPOFACTS` directory to assemble all matching

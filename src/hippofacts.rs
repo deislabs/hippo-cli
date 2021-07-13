@@ -178,7 +178,7 @@ mod test {
 
     #[test]
     fn test_parse_externals() {
-        let facts = HippoFacts::read_from("./testdata/external/HIPPOFACTS").expect("error reading facts file");
+        let facts = HippoFacts::read_from("./testdata/external1/HIPPOFACTS").expect("error reading facts file");
 
         assert_eq!("toastbattle", &facts.bindle.name);
 

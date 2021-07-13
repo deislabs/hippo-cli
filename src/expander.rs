@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 
 use crate::hippofacts::{ExternalRef, HandlerModule};
 use crate::{hippofacts::Handler, HippoFacts};
-use crate::bindle_utils::{InvoiceHelpers, ParcelHelpers};
+use crate::bindle_utils::{InvoiceHelpers};
 
 pub struct ExpansionContext {
     pub relative_to: PathBuf,
@@ -180,9 +180,17 @@ fn expand_one_external_ref_dependencies_to_parcels(
     let parcels = (|| {
         let invoice = expansion_context.external_invoices.get(&external_ref.bindle_id).ok_or_else(|| anyhow::anyhow!("external invoice not found on server"))?;
         let main_parcel = find_handler_parcel(invoice, &external_ref.handler_id).ok_or_else(|| anyhow::anyhow!("external invoice does not contain specified parcel"))?;
-        let required_groups = main_parcel.requires();
-        let parcel_lists = required_groups.iter().map(|g| expand_one_required_group_to_parcels(g, &invoice, dest_group_name));
-        flatten_or_fail(parcel_lists)
+        let required_parcels = invoice.parcels_required_by(&main_parcel);
+        let parcel_copies = required_parcels.iter().map(|p|
+            Parcel {
+                label: p.label.clone(),
+                conditions: Some(Condition {
+                    member_of: Some(vec![dest_group_name.to_owned()]),
+                    requires: None,
+                })
+            }
+        );
+        Ok(parcel_copies.collect())
     })();
     parcels.map_err(|e: anyhow::Error| {
         anyhow::anyhow!(
@@ -192,21 +200,6 @@ fn expand_one_external_ref_dependencies_to_parcels(
             e
         )
     })
-}
-
-fn expand_one_required_group_to_parcels(group_name: &String, invoice: &Invoice, dest_group_name: &str) -> anyhow::Result<Vec<Parcel>> {
-    let immediate_dependencies = invoice.parcels_in(group_name);
-    // TODO: indirect dependencies
-    let parcel_copies = immediate_dependencies.iter().map(|p|
-        Parcel {
-            label: p.label.clone(),
-            conditions: Some(Condition {
-                member_of: Some(vec![dest_group_name.to_owned()]),
-                requires: None,
-            })
-        }
-    );
-    Ok(parcel_copies.collect())
 }
 
 fn expand_all_files_to_parcels(
@@ -546,8 +539,77 @@ mod test {
                     feature: None,
                 },
                 conditions: None
-            }
-
+            },
+            Parcel {
+                label: Label {
+                    name: "imagegallery.wasm".to_owned(),
+                    sha256: "13463".to_owned(),
+                    media_type: "application/wasm".to_owned(),
+                    size: 234,
+                    annotations: Some(vec![("wagi.handler_id".to_owned(), "image_gallery".to_owned())].into_iter().collect()),
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: None,
+                    requires: Some(vec!["igfiles".to_owned()]),
+                })
+            },
+            Parcel {
+                label: Label {
+                    name: "images.db".to_owned(),
+                    sha256: "134632".to_owned(),
+                    media_type: "application/octet-stream".to_owned(),
+                    size: 345,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: Some(vec!["igfiles".to_owned()]),
+                    requires: None,
+                }),
+            },
+            Parcel {
+                label: Label {
+                    name: "thumbnails.db".to_owned(),
+                    sha256: "444444".to_owned(),
+                    media_type: "application/octet-stream".to_owned(),
+                    size: 456,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: Some(vec!["igfiles".to_owned()]),
+                    requires: Some(vec!["thumbfiles".to_owned()]),
+                }),
+            },
+            Parcel {
+                label: Label {
+                    name: "thumblywumbly.txt".to_owned(),  // give me a break I am running out of ideas
+                    sha256: "555555".to_owned(),
+                    media_type: "text/plain".to_owned(),
+                    size: 456,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: Some(vec!["thumbfiles".to_owned()]),
+                    requires: None,
+                }),
+            },
+            Parcel {
+                label: Label {
+                    name: "unused.txt".to_owned(),
+                    sha256: "3948759834765".to_owned(),
+                    media_type: "text/plain".to_owned(),
+                    size: 456,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: Some(vec!["group_that_does_not_exist".to_owned()]),
+                    requires: None,
+                }),
+            },
         ];
         let fs_invoice = Invoice {
             bindle_version: "1.0.0".to_owned(),
@@ -744,12 +806,19 @@ mod test {
 
     #[test]
     fn test_externals_are_surfaced_as_parcels() {
-        let invoice = expand_test_invoice("external").unwrap();
+        let invoice = expand_test_invoice("external1").unwrap();
         let parcels = invoice.parcel.as_ref().unwrap();
         let ext_parcel = parcel_named(&invoice, "file_server.gr.wasm");
         assert_eq!("123456789", ext_parcel.label.sha256);
         assert_eq!("application/wasm", ext_parcel.label.media_type);
         assert_eq!(100, ext_parcel.label.size);
         assert_eq!(5, parcels.len());  // 1 local handler, 1 ext handler, 3 asset files
+    }
+
+    #[test]
+    fn test_externals_bring_along_their_dependencies() {
+        let invoice = expand_test_invoice("external2").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        assert_eq!(8, parcels.len());  // 1 local handler, 1 ext handler, 3 asset files, 2 immediate ext deps, 1 indirect ext dep
     }
 }

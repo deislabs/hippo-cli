@@ -209,7 +209,7 @@ route = "/images"
 files = ["birds/*.jpg"]
 ```
 
-Hippofactory will locate the specified `handler_id` in the given bindle, and create a
+Hippofactory will locate the specified `wagi_handler_id` in the given bindle, and create a
 parcel in your invoice that points to the same blob but with a `requires` condition for
 the handler group. It also creates parcels for any parcels that the handler `requires`
 in its original bindle.

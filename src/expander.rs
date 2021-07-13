@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
@@ -74,6 +74,7 @@ pub fn expand(
     let external_dependent_parcels =
         expand_all_external_ref_dependencies_to_parcels(&hippofacts, expansion_context)?;
     let file_parcels = expand_all_files_to_parcels(&hippofacts, expansion_context)?;
+    check_for_name_clashes(&external_dependent_parcels, &file_parcels)?;
     let parcels = handler_parcels
         .into_iter()
         .chain(external_dependent_parcels)
@@ -443,6 +444,19 @@ where
     Ok(result)
 }
 
+fn check_for_name_clashes(
+    external_dependent_parcels: &Vec<Parcel>,
+    file_parcels: &Vec<Parcel>
+) -> anyhow::Result<()> {
+    let file_parcel_names: HashSet<_> = file_parcels.iter().map(|p| p.label.name.to_owned()).collect();
+    for parcel in external_dependent_parcels {
+        if file_parcel_names.contains(&parcel.label.name) {
+            return Err(anyhow::anyhow!("{} occurs both as a local file and as a dependency of an external reference", parcel.label.name));
+        }
+    }
+    Ok(())
+}
+
 fn current_user() -> Option<String> {
     std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
@@ -537,8 +551,7 @@ mod test {
             invoice_versioning: InvoiceVersioning::Production,
             external_invoices: external_test_invoices(),
         };
-        let invoice = expand(&hippofacts, &expansion_context).expect("error expanding");
-        Ok(invoice)
+        expand(&hippofacts, &expansion_context)
     }
 
     fn external_test_invoices() -> HashMap<bindle::Id, Invoice> {
@@ -856,5 +869,16 @@ mod test {
         let invoice = expand_test_invoice("external2").unwrap();
         let parcels = invoice.parcel.as_ref().unwrap();
         assert_eq!(8, parcels.len()); // 1 local handler, 1 ext handler, 3 asset files, 2 immediate ext deps, 1 indirect ext dep
+    }
+
+    #[test]
+    fn test_externals_cannot_clash_with_local_files() {
+        let invoice = expand_test_invoice("external3");
+        assert!(invoice.is_err());
+        if let Err(e) = invoice {
+            let message = format!("{}", e);
+            assert!(message.contains("thumbnails.db"));
+            assert!(message.contains("occurs both as a local file and as a dependency of an external reference"));
+        }
     }
 }

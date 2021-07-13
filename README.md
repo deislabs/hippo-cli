@@ -197,7 +197,7 @@ To do this:
 * The library parcel but have an annotation named `wagi_handler_id`. This is the ID by
   which HIPPOFACTS will refer to it - this decouples the reference from volatile details
   like parcel name or SHA.
-* Instead of a `name` in your `handler` table, you specify a `bindle_id` and `handler_id`.
+* Instead of a `name` in your `handler` table, you specify a `bindleId` and `handlerId`.
 
 For example:
 

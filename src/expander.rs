@@ -9,8 +9,7 @@ use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
 use crate::bindle_utils::InvoiceHelpers;
-use crate::hippofacts::{ExternalRef, HandlerModule};
-use crate::{hippofacts::Handler, HippoFacts};
+use crate::hippofacts::{ExternalRef, HippoFacts, HippoFactsEntry};
 
 pub struct ExpansionContext {
     pub relative_to: PathBuf,
@@ -109,25 +108,26 @@ fn expand_id(
 }
 
 fn expand_all_handlers_to_groups(hippofacts: &HippoFacts) -> anyhow::Result<Vec<Group>> {
-    let groups = hippofacts.handler.iter().map(expand_to_group).collect();
+    let groups = hippofacts.entries.iter().map(expand_to_group).collect();
     Ok(groups)
 }
 
-fn expand_to_group(handler: &Handler) -> Group {
+fn expand_to_group(entry: &HippoFactsEntry) -> Group {
     Group {
-        name: group_name(handler),
+        name: group_name(entry),
         required: None,
         satisfied_by: None,
     }
 }
 
-fn group_name(handler: &Handler) -> String {
-    match &handler.handler_module {
-        HandlerModule::File(name) => format!("{}-files", name),
-        HandlerModule::External(ext) => format!(
+fn group_name(handler: &HippoFactsEntry) -> String {
+    match handler {
+        HippoFactsEntry::LocalHandler(h) => format!("{}-files", h.name),
+        HippoFactsEntry::ExternalHandler(h) => format!(
             "import:{}:{}-at-{}-files",
-            ext.bindle_id, ext.handler_id, &handler.route
+            &h.external.bindle_id, &h.external.handler_id, &h.route
         ),
+        HippoFactsEntry::Export(e) => format!("{}-{}-files", e.name, e.id),
     }
 }
 
@@ -136,31 +136,32 @@ fn expand_handler_modules_to_parcels(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
     let parcels = hippofacts
-        .handler
+        .entries
         .iter()
         .map(|handler| expand_one_handler_module_to_parcel(handler, expansion_context));
     parcels.collect()
 }
 
 fn expand_one_handler_module_to_parcel(
-    handler: &Handler,
+    handler: &HippoFactsEntry,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Parcel> {
-    match &handler.handler_module {
-        HandlerModule::File(name) => convert_one_match_to_parcel(
-            PathBuf::from(expansion_context.to_absolute(&name)),
+    match &handler {
+        HippoFactsEntry::LocalHandler(h) => convert_one_match_to_parcel(
+            PathBuf::from(expansion_context.to_absolute(&h.name)),
             expansion_context,
-            vec![("route", &handler.route), ("file", "false")],
+            vec![("route", &h.route), ("file", "false")],
             None,
             Some(&group_name(handler)),
         ),
-        HandlerModule::External(external_ref) => convert_one_ref_to_parcel(
-            external_ref,
+        HippoFactsEntry::ExternalHandler(e) => convert_one_ref_to_parcel(
+            &e.external,
             expansion_context,
-            vec![("route", &handler.route), ("file", "false")],
+            vec![("route", &e.route), ("file", "false")],
             None,
             Some(&group_name(handler)),
         ),
+        HippoFactsEntry::Export(e) => todo!("the export case"),
     }
 }
 
@@ -169,17 +170,17 @@ fn expand_all_external_ref_dependencies_to_parcels(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
     let parcel_lists = hippofacts
-        .handler
+        .entries
         .iter()
-        .map(|handler| match &handler.handler_module {
-            HandlerModule::External(external_ref) => {
+        .map(|handler| match &handler {
+            HippoFactsEntry::ExternalHandler(e) => {
                 expand_one_external_ref_dependencies_to_parcels(
-                    external_ref,
+                    &e.external,
                     expansion_context,
                     &group_name(handler),
                 )
             }
-            HandlerModule::File(_) => Ok(vec![]),
+            _ => Ok(vec![]),
         });
     let parcels = flatten_or_fail(parcel_lists)?;
     Ok(merge_memberships(parcels))
@@ -225,7 +226,7 @@ fn expand_all_files_to_parcels(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
     let parcel_lists = hippofacts
-        .handler
+        .entries
         .iter()
         .map(|handler| expand_files_to_parcels(handler, expansion_context));
     let parcels = flatten_or_fail(parcel_lists)?;
@@ -233,13 +234,10 @@ fn expand_all_files_to_parcels(
 }
 
 fn expand_files_to_parcels(
-    handler: &Handler,
+    handler: &HippoFactsEntry,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let patterns: Vec<String> = match &handler.files {
-        None => vec![],
-        Some(files) => files.clone(),
-    };
+    let patterns = handler.files();
     let parcels = patterns
         .iter()
         .map(|f| expand_file_to_parcels(f, expansion_context, &group_name(handler)));

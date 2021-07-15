@@ -1,18 +1,21 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 
-use bindle::{BindleSpec, Condition, Group, Invoice, Label, Parcel};
+use bindle::{AnnotationMap, BindleSpec, Condition, Group, Invoice, Label, Parcel};
 use glob::GlobError;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
+use crate::bindle_utils::InvoiceHelpers;
+use crate::hippofacts::{ExternalRef, HandlerModule};
 use crate::{hippofacts::Handler, HippoFacts};
 
 pub struct ExpansionContext {
     pub relative_to: PathBuf,
     pub invoice_versioning: InvoiceVersioning,
+    pub external_invoices: HashMap<bindle::Id, Invoice>,
 }
 
 impl ExpansionContext {
@@ -68,8 +71,15 @@ pub fn expand(
 ) -> anyhow::Result<Invoice> {
     let groups = expand_all_handlers_to_groups(&hippofacts)?;
     let handler_parcels = expand_handler_modules_to_parcels(&hippofacts, expansion_context)?;
+    let external_dependent_parcels =
+        expand_all_external_ref_dependencies_to_parcels(&hippofacts, expansion_context)?;
     let file_parcels = expand_all_files_to_parcels(&hippofacts, expansion_context)?;
-    let parcels = handler_parcels.into_iter().chain(file_parcels).collect();
+    check_for_name_clashes(&external_dependent_parcels, &file_parcels)?;
+    let parcels = handler_parcels
+        .into_iter()
+        .chain(external_dependent_parcels)
+        .chain(file_parcels)
+        .collect();
 
     let invoice = Invoice {
         bindle_version: "1.0.0".to_owned(),
@@ -99,13 +109,7 @@ fn expand_id(
 }
 
 fn expand_all_handlers_to_groups(hippofacts: &HippoFacts) -> anyhow::Result<Vec<Group>> {
-    let groups = hippofacts
-        .handler
-        .as_ref()
-        .ok_or_else(no_handlers)?
-        .iter()
-        .map(expand_to_group)
-        .collect();
+    let groups = hippofacts.handler.iter().map(expand_to_group).collect();
     Ok(groups)
 }
 
@@ -118,32 +122,110 @@ fn expand_to_group(handler: &Handler) -> Group {
 }
 
 fn group_name(handler: &Handler) -> String {
-    format!("{}-files", handler.name)
+    match &handler.handler_module {
+        HandlerModule::File(name) => format!("{}-files", name),
+        HandlerModule::External(ext) => format!(
+            "import:{}:{}-at-{}-files",
+            ext.bindle_id, ext.handler_id, &handler.route
+        ),
+    }
 }
 
 fn expand_handler_modules_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
-    let parcels = handlers.iter().map(|handler| {
-        convert_one_match_to_parcel(
-            PathBuf::from(expansion_context.to_absolute(&handler.name)),
+    let parcels = hippofacts
+        .handler
+        .iter()
+        .map(|handler| expand_one_handler_module_to_parcel(handler, expansion_context));
+    parcels.collect()
+}
+
+fn expand_one_handler_module_to_parcel(
+    handler: &Handler,
+    expansion_context: &ExpansionContext,
+) -> anyhow::Result<Parcel> {
+    match &handler.handler_module {
+        HandlerModule::File(name) => convert_one_match_to_parcel(
+            PathBuf::from(expansion_context.to_absolute(&name)),
             expansion_context,
             vec![("route", &handler.route), ("file", "false")],
             None,
             Some(&group_name(handler)),
+        ),
+        HandlerModule::External(external_ref) => convert_one_ref_to_parcel(
+            external_ref,
+            expansion_context,
+            vec![("route", &handler.route), ("file", "false")],
+            None,
+            Some(&group_name(handler)),
+        ),
+    }
+}
+
+fn expand_all_external_ref_dependencies_to_parcels(
+    hippofacts: &HippoFacts,
+    expansion_context: &ExpansionContext,
+) -> anyhow::Result<Vec<Parcel>> {
+    let parcel_lists = hippofacts
+        .handler
+        .iter()
+        .map(|handler| match &handler.handler_module {
+            HandlerModule::External(external_ref) => {
+                expand_one_external_ref_dependencies_to_parcels(
+                    external_ref,
+                    expansion_context,
+                    &group_name(handler),
+                )
+            }
+            HandlerModule::File(_) => Ok(vec![]),
+        });
+    let parcels = flatten_or_fail(parcel_lists)?;
+    Ok(merge_memberships(parcels))
+}
+
+fn expand_one_external_ref_dependencies_to_parcels(
+    external_ref: &ExternalRef,
+    expansion_context: &ExpansionContext,
+    dest_group_name: &str,
+) -> anyhow::Result<Vec<Parcel>> {
+    let parcels = (|| {
+        let invoice = expansion_context
+            .external_invoices
+            .get(&external_ref.bindle_id)
+            .ok_or_else(|| anyhow::anyhow!("external invoice not found on server"))?;
+        let main_parcel = find_handler_parcel(invoice, &external_ref.handler_id)
+            .ok_or_else(|| anyhow::anyhow!("external invoice does not contain specified parcel"))?;
+        let required_parcels = invoice.parcels_required_by(&main_parcel);
+        let parcel_copies = required_parcels.iter().map(|p| Parcel {
+            label: Label {
+                annotations: annotation_do_not_stage_file(),
+                ..p.label.clone()
+            },
+            conditions: Some(Condition {
+                member_of: Some(vec![dest_group_name.to_owned()]),
+                requires: None,
+            }),
+        });
+        Ok(parcel_copies.collect())
+    })();
+    parcels.map_err(|e: anyhow::Error| {
+        anyhow::anyhow!(
+            "Could not copy dependency tree for external ref {}:{}: {}",
+            external_ref.bindle_id,
+            external_ref.handler_id,
+            e
         )
-    });
-    parcels.collect()
+    })
 }
 
 fn expand_all_files_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let handlers = hippofacts.handler.as_ref().ok_or_else(no_handlers)?;
-    let parcel_lists = handlers
+    let parcel_lists = hippofacts
+        .handler
         .iter()
         .map(|handler| expand_files_to_parcels(handler, expansion_context));
     let parcels = flatten_or_fail(parcel_lists)?;
@@ -239,6 +321,65 @@ fn convert_one_match_to_parcel(
     })
 }
 
+fn convert_one_ref_to_parcel(
+    external_ref: &ExternalRef,
+    expansion_context: &ExpansionContext,
+    wagi_features: Vec<(&str, &str)>,
+    member_of: Option<&str>,
+    requires: Option<&str>,
+) -> anyhow::Result<Parcel> {
+    // Immediate-call closure allows us to use the try operator
+    let parcel = (|| {
+        // We don't need to give the IDs in these messages because these will be prepended when
+        // mapping errors that escape the closure (the parcel.map_err below)
+        let invoice = expansion_context
+            .external_invoices
+            .get(&external_ref.bindle_id)
+            .ok_or_else(|| anyhow::anyhow!("external invoice not found on server"))?;
+        let parcel = find_handler_parcel(invoice, &external_ref.handler_id)
+            .ok_or_else(|| anyhow::anyhow!("external invoice does not contain specified parcel"))?;
+
+        let feature = Some(wagi_feature_of(wagi_features));
+
+        Ok(Parcel {
+            label: Label {
+                name: parcel.label.name.clone(),
+                sha256: parcel.label.sha256.clone(),
+                media_type: parcel.label.media_type.clone(),
+                size: parcel.label.size,
+                annotations: annotation_do_not_stage_file(),
+                feature,
+            },
+            conditions: Some(Condition {
+                member_of: vector_of(member_of),
+                requires: vector_of(requires),
+            }),
+        })
+    })();
+    parcel.map_err(|e: anyhow::Error| {
+        anyhow::anyhow!(
+            "Could not assemble parcel for external ref {}:{}: {}",
+            external_ref.bindle_id,
+            external_ref.handler_id,
+            e
+        )
+    })
+}
+
+fn find_handler_parcel<'a>(invoice: &'a Invoice, handler_id: &'a str) -> Option<&'a Parcel> {
+    match invoice.parcel.as_ref() {
+        None => None,
+        Some(parcels) => parcels.iter().find(|p| has_handler_id(p, handler_id)),
+    }
+}
+
+fn has_handler_id(parcel: &Parcel, handler_id: &str) -> bool {
+    match parcel.label.annotations.as_ref() {
+        None => false,
+        Some(map) => map.get("wagi_handler_id") == Some(&handler_id.to_owned()),
+    }
+}
+
 fn merge_memberships(parcels: Vec<Parcel>) -> Vec<Parcel> {
     parcels
         .into_iter()
@@ -303,14 +444,23 @@ where
     Ok(result)
 }
 
+fn check_for_name_clashes(
+    external_dependent_parcels: &Vec<Parcel>,
+    file_parcels: &Vec<Parcel>
+) -> anyhow::Result<()> {
+    let file_parcel_names: HashSet<_> = file_parcels.iter().map(|p| p.label.name.to_owned()).collect();
+    for parcel in external_dependent_parcels {
+        if file_parcel_names.contains(&parcel.label.name) {
+            return Err(anyhow::anyhow!("{} occurs both as a local file and as a dependency of an external reference", parcel.label.name));
+        }
+    }
+    Ok(())
+}
+
 fn current_user() -> Option<String> {
     std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .ok()
-}
-
-fn no_handlers() -> anyhow::Error {
-    anyhow::anyhow!("No handlers defined in artifact spec")
 }
 
 fn file_id(parcel: &Parcel) -> String {
@@ -334,6 +484,12 @@ fn feature_map_of(values: Vec<(&str, &str)>) -> BTreeMap<String, String> {
         .collect()
 }
 
+fn annotation_do_not_stage_file() -> Option<AnnotationMap> {
+    let mut annotations = AnnotationMap::new();
+    annotations.insert("hippofactory_do_not_stage".to_owned(), "true".to_owned());
+    Some(annotations)
+}
+
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
@@ -348,9 +504,7 @@ mod test {
     }
 
     fn read_hippofacts(path: impl AsRef<Path>) -> anyhow::Result<HippoFacts> {
-        let toml_text = std::fs::read_to_string(path)?;
-        let hippofacts: HippoFacts = toml::from_str(&toml_text)?;
-        Ok(hippofacts)
+        HippoFacts::read_from(path)
     }
 
     fn parcel_named<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Parcel {
@@ -395,9 +549,133 @@ mod test {
         let expansion_context = ExpansionContext {
             relative_to: dir,
             invoice_versioning: InvoiceVersioning::Production,
+            external_invoices: external_test_invoices(),
         };
-        let invoice = expand(&hippofacts, &expansion_context).expect("error expanding");
-        Ok(invoice)
+        expand(&hippofacts, &expansion_context)
+    }
+
+    fn external_test_invoices() -> HashMap<bindle::Id, Invoice> {
+        let mut invoices = HashMap::new();
+
+        let fs_id = bindle::Id::from_str("deislabs/fileserver/1.0.3").unwrap();
+        let fs_parcels = vec![
+            Parcel {
+                label: Label {
+                    name: "experimental_file_server.gr.wasm".to_owned(),
+                    sha256: "987654".to_owned(),
+                    media_type: "application/wasm".to_owned(),
+                    size: 123,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: None,
+            },
+            Parcel {
+                label: Label {
+                    name: "file_server.gr.wasm".to_owned(),
+                    sha256: "123456789".to_owned(),
+                    media_type: "application/wasm".to_owned(),
+                    size: 100,
+                    annotations: Some(
+                        vec![("wagi_handler_id".to_owned(), "static".to_owned())]
+                            .into_iter()
+                            .collect(),
+                    ),
+                    feature: None,
+                },
+                conditions: None,
+            },
+            Parcel {
+                label: Label {
+                    name: "imagegallery.wasm".to_owned(),
+                    sha256: "13463".to_owned(),
+                    media_type: "application/wasm".to_owned(),
+                    size: 234,
+                    annotations: Some(
+                        vec![("wagi_handler_id".to_owned(), "image_gallery".to_owned())]
+                            .into_iter()
+                            .collect(),
+                    ),
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: None,
+                    requires: Some(vec!["igfiles".to_owned()]),
+                }),
+            },
+            Parcel {
+                label: Label {
+                    name: "images.db".to_owned(),
+                    sha256: "134632".to_owned(),
+                    media_type: "application/octet-stream".to_owned(),
+                    size: 345,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: Some(vec!["igfiles".to_owned()]),
+                    requires: None,
+                }),
+            },
+            Parcel {
+                label: Label {
+                    name: "thumbnails.db".to_owned(),
+                    sha256: "444444".to_owned(),
+                    media_type: "application/octet-stream".to_owned(),
+                    size: 456,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: Some(vec!["igfiles".to_owned()]),
+                    requires: Some(vec!["thumbfiles".to_owned()]),
+                }),
+            },
+            Parcel {
+                label: Label {
+                    name: "thumblywumbly.txt".to_owned(), // give me a break I am running out of ideas
+                    sha256: "555555".to_owned(),
+                    media_type: "text/plain".to_owned(),
+                    size: 456,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: Some(vec!["thumbfiles".to_owned()]),
+                    requires: None,
+                }),
+            },
+            Parcel {
+                label: Label {
+                    name: "unused.txt".to_owned(),
+                    sha256: "3948759834765".to_owned(),
+                    media_type: "text/plain".to_owned(),
+                    size: 456,
+                    annotations: None,
+                    feature: None,
+                },
+                conditions: Some(Condition {
+                    member_of: Some(vec!["group_that_does_not_exist".to_owned()]),
+                    requires: None,
+                }),
+            },
+        ];
+        let fs_invoice = Invoice {
+            bindle_version: "1.0.0".to_owned(),
+            yanked: None,
+            bindle: bindle::BindleSpec {
+                id: fs_id.clone(),
+                description: None,
+                authors: None,
+            },
+            annotations: None,
+            parcel: Some(fs_parcels),
+            group: None,
+            signature: None,
+        };
+        invoices.insert(fs_id.clone(), fs_invoice);
+
+        invoices
     }
 
     #[test]
@@ -573,5 +851,34 @@ mod test {
             .iter()
             .filter(|parcel| parcel.conditions.as_ref().unwrap().member_of.is_some());
         assert_eq!(1, asset_parcel.count());
+    }
+
+    #[test]
+    fn test_externals_are_surfaced_as_parcels() {
+        let invoice = expand_test_invoice("external1").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        let ext_parcel = parcel_named(&invoice, "file_server.gr.wasm");
+        assert_eq!("123456789", ext_parcel.label.sha256);
+        assert_eq!("application/wasm", ext_parcel.label.media_type);
+        assert_eq!(100, ext_parcel.label.size);
+        assert_eq!(5, parcels.len()); // 1 local handler, 1 ext handler, 3 asset files
+    }
+
+    #[test]
+    fn test_externals_bring_along_their_dependencies() {
+        let invoice = expand_test_invoice("external2").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        assert_eq!(8, parcels.len()); // 1 local handler, 1 ext handler, 3 asset files, 2 immediate ext deps, 1 indirect ext dep
+    }
+
+    #[test]
+    fn test_externals_cannot_clash_with_local_files() {
+        let invoice = expand_test_invoice("external3");
+        assert!(invoice.is_err());
+        if let Err(e) = invoice {
+            let message = format!("{}", e);
+            assert!(message.contains("thumbnails.db"));
+            assert!(message.contains("occurs both as a local file and as a dependency of an external reference"));
+        }
     }
 }

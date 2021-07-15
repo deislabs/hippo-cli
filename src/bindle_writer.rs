@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use bindle::{Invoice, Parcel};
 
+use crate::bindle_utils::ParcelHelpers;
+
 pub struct BindleWriter {
     source_base_path: PathBuf,
     dest_base_path: PathBuf,
@@ -59,6 +61,9 @@ impl BindleWriter {
     }
 
     async fn write_one_parcel(&self, parcels_dir: &PathBuf, parcel: &Parcel) -> anyhow::Result<()> {
+        if parcel.has_annotation("hippofactory_do_not_stage") {
+            return Ok(());
+        }
         let source_file = self.source_base_path.join(&parcel.label.name);
         let hash = &parcel.label.sha256;
         let dest_file = parcels_dir.join(format!("{}.dat", hash));

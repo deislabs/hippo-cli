@@ -152,6 +152,7 @@ fn expand_one_handler_module_to_parcel(
             expansion_context,
             vec![("route", &h.route), ("file", "false")],
             None,
+            None,
             Some(&group_name(handler)),
         ),
         HippoFactsEntry::ExternalHandler(e) => convert_one_ref_to_parcel(
@@ -161,7 +162,14 @@ fn expand_one_handler_module_to_parcel(
             None,
             Some(&group_name(handler)),
         ),
-        HippoFactsEntry::Export(e) => todo!("the export case"),
+        HippoFactsEntry::Export(e) => convert_one_match_to_parcel(
+            PathBuf::from(expansion_context.to_absolute(&e.name)),
+            expansion_context,
+            vec![("file", "false")],
+            Some(vec![("wagi_handler_id", &e.id)]),
+            None,
+            Some(&group_name(handler)),
+        ),
     }
 }
 
@@ -265,7 +273,7 @@ fn try_convert_one_match_to_parcel(
         Err(e) => Err(anyhow::anyhow!("Couldn't expand pattern: {}", e)),
         Ok(path) => {
             let features = vec![("file", "true")];
-            convert_one_match_to_parcel(path, expansion_context, features, Some(member_of), None)
+            convert_one_match_to_parcel(path, expansion_context, features, None, Some(member_of), None)
         }
     }
 }
@@ -274,6 +282,7 @@ fn convert_one_match_to_parcel(
     path: PathBuf,
     expansion_context: &ExpansionContext,
     wagi_features: Vec<(&str, &str)>,
+    wagi_annotations: Option<Vec<(&str, &str)>>,
     member_of: Option<&str>,
     requires: Option<&str>,
 ) -> anyhow::Result<Parcel> {
@@ -293,6 +302,7 @@ fn convert_one_match_to_parcel(
             .first_or_octet_stream()
             .to_string();
 
+        let annotations = wagi_annotations.map(map_of);
         let feature = Some(wagi_feature_of(wagi_features));
 
         Ok(Parcel {
@@ -302,7 +312,7 @@ fn convert_one_match_to_parcel(
                 media_type,
                 size,
                 feature,
-                ..Label::default()
+                annotations,
             },
             conditions: Some(Condition {
                 member_of: vector_of(member_of),
@@ -472,10 +482,10 @@ fn vector_of(option: Option<&str>) -> Option<Vec<String>> {
 }
 
 fn wagi_feature_of(values: Vec<(&str, &str)>) -> BTreeMap<String, BTreeMap<String, String>> {
-    BTreeMap::from_iter(vec![("wagi".to_owned(), feature_map_of(values))])
+    BTreeMap::from_iter(vec![("wagi".to_owned(), map_of(values))])
 }
 
-fn feature_map_of(values: Vec<(&str, &str)>) -> BTreeMap<String, String> {
+fn map_of(values: Vec<(&str, &str)>) -> BTreeMap<String, String> {
     values
         .into_iter()
         .map(|(k, v)| (k.to_owned(), v.to_owned()))
@@ -878,5 +888,20 @@ mod test {
             assert!(message.contains("thumbnails.db"));
             assert!(message.contains("occurs both as a local file and as a dependency of an external reference"));
         }
+    }
+
+    #[test]
+    fn test_exports_have_the_wagi_handler_annotation() {
+        let invoice = expand_test_invoice("lib1").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        assert_eq!(1, parcels.len());
+
+        let exported_parcel = parcel_named(&invoice, "wasm/server.wasm");
+
+        match exported_parcel.label.annotations.as_ref() {
+            None => assert!(false, "No annotations on the exported parcel"),
+            Some(map) =>
+                assert_eq!("serve_all_the_things", map.get("wagi_handler_id").unwrap()),
+        };
     }
 }

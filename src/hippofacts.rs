@@ -287,7 +287,7 @@ mod test {
 
         assert_eq!("server", &facts.bindle.name);
 
-        assert_eq!(1, facts.entries.len());
+        assert_eq!(2, facts.entries.len());
 
         let server_export = &facts.entries[0];
         assert_eq!("wasm/server.wasm", server_export.name().unwrap());

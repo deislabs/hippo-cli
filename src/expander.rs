@@ -522,7 +522,7 @@ mod test {
             .unwrap()
             .iter()
             .find(|p| p.label.name == parcel_name)
-            .unwrap()
+            .expect(&format!("No parcel named {}", parcel_name))
     }
 
     fn parcel_feature_value<'a>(
@@ -549,6 +549,14 @@ mod test {
             .conditions
             .as_ref()
             .unwrap()
+    }
+
+    fn parcel_memberships<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Vec<String> {
+        parcel_conditions(invoice, parcel_name).member_of.as_ref().unwrap()
+    }
+
+    fn parcel_requirements<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Vec<String> {
+        parcel_conditions(invoice, parcel_name).requires.as_ref().unwrap()
     }
 
     fn expand_test_invoice(name: &str) -> anyhow::Result<Invoice> {
@@ -894,7 +902,7 @@ mod test {
     fn test_exports_have_the_wagi_handler_annotation() {
         let invoice = expand_test_invoice("lib1").unwrap();
         let parcels = invoice.parcel.as_ref().unwrap();
-        assert_eq!(1, parcels.len());
+        assert_eq!(4, parcels.len());
 
         let exported_parcel = parcel_named(&invoice, "wasm/server.wasm");
 
@@ -903,5 +911,17 @@ mod test {
             Some(map) =>
                 assert_eq!("serve_all_the_things", map.get("wagi_handler_id").unwrap()),
         };
+    }
+
+    #[test]
+    fn test_exports_bring_along_their_dependencies() {
+        let invoice = expand_test_invoice("lib1").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        assert_eq!(4, parcels.len());
+
+        assert_eq!("wasm/gallery.wasm-image_gallery-files", parcel_requirements(&invoice, "wasm/gallery.wasm")[0]);
+
+        assert_eq!("wasm/gallery.wasm-image_gallery-files", parcel_memberships(&invoice, "gallery/images.db")[0]);
+        assert_eq!("wasm/gallery.wasm-image_gallery-files", parcel_memberships(&invoice, "gallery/thumbnails.db")[0]);
     }
 }

@@ -11,6 +11,7 @@ struct RawHippoFacts {
     pub bindle: BindleSpec,
     pub annotations: Option<AnnotationMap>,
     pub handler: Option<Vec<RawHandler>>,
+    pub export: Option<Vec<RawExport>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -33,6 +34,14 @@ struct RawHandler {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct RawExport {
+    pub name: String,
+    pub id: String,
+    pub files: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RawExternalRef {
     pub bindle_id: String,
     pub handler_id: String,
@@ -42,6 +51,7 @@ pub struct HippoFacts {
     pub bindle: BindleSpec,
     pub annotations: Option<AnnotationMap>,
     pub handler: Vec<Handler>,
+    pub export: Vec<Export>,
 }
 
 pub struct Handler {
@@ -58,6 +68,13 @@ pub enum HandlerModule {
 pub struct ExternalRef {
     pub bindle_id: bindle::Id,
     pub handler_id: String,
+}
+
+
+pub struct Export {
+    pub name: String,
+    pub id: String,
+    pub files: Vec<String>,
 }
 
 impl HippoFacts {
@@ -82,12 +99,18 @@ impl TryFrom<&RawHippoFacts> for HippoFacts {
     type Error = anyhow::Error;
 
     fn try_from(raw: &RawHippoFacts) -> anyhow::Result<Self> {
-        let handler_vec = raw.handler.as_ref().ok_or_else(no_handlers)?;
-        let handler: anyhow::Result<Vec<_>> = handler_vec.iter().map(Handler::try_from).collect();
+        let handler_vec = raw.handler.clone().unwrap_or_default();
+        let export_vec = raw.export.clone().unwrap_or_default();
+        let handler = handler_vec.iter().map(Handler::try_from).collect::<anyhow::Result<Vec<_>>>()?;
+        let export = export_vec.iter().map(Export::try_from).collect::<anyhow::Result<Vec<_>>>()?;
+        if handler.is_empty() && export_vec.is_empty() {
+            return Err(no_handlers());
+        }
         Ok(Self {
             bindle: raw.bindle.clone(),
             annotations: raw.annotations.clone(),
-            handler: handler?,
+            handler,
+            export,
         })
     }
 }
@@ -117,6 +140,18 @@ impl TryFrom<&RawExternalRef> for ExternalRef {
         Ok(Self {
             bindle_id,
             handler_id: raw.handler_id.clone(),
+        })
+    }
+}
+
+impl TryFrom<&RawExport> for Export {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: &RawExport) -> anyhow::Result<Export> {
+        Ok(Self {
+            id: raw.id.clone(),
+            name: raw.name.clone(),
+            files: raw.files.clone().unwrap_or_default(),
         })
     }
 }
@@ -192,6 +227,41 @@ mod test {
             assert_eq!("static", ext.handler_id);
         } else {
             assert!(false, "handler 1 should have been External");
+        }
+    }
+
+    #[test]
+    fn test_parse_exports() {
+        let facts = HippoFacts::read_from("./testdata/lib1/HIPPOFACTS").expect("error reading facts file");
+
+        assert_eq!("server", &facts.bindle.name);
+        assert_eq!(0, facts.handler.len());
+
+        let exports = &facts.export;
+        assert_eq!(1, exports.len());
+
+        let server_export = &exports[0];
+        assert_eq!("wasm/server.wasm", server_export.name);
+        assert_eq!("serve_all_the_things", server_export.id);
+        assert_eq!(0, server_export.files.len());
+    }
+
+    #[test]
+    fn test_no_handlers_no_exports_no_service() {
+        let raw: RawHippoFacts = toml::from_str(
+            r#"
+        # HIPPO FACT: Hippos are the second heaviest land animal after the elephant
+        [bindle]
+        name = "nope"
+        version = "1.2.4"
+        "#,
+        )
+        .expect("error parsing test TOML");
+        let facts = HippoFacts::try_from(&raw);
+
+        assert!(facts.is_err());
+        if let Err(e) = facts {
+            assert!(e.to_string().contains("No handlers"), "check error message is helpful: '{}'", e);
         }
     }
 }

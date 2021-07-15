@@ -178,22 +178,6 @@ impl TryFrom<&RawExport> for HippoFactsEntry {
 }
 
 impl HippoFactsEntry {
-    pub fn name(&self) -> Option<String> {
-        match self {
-            Self::LocalHandler(h) => Some(h.name.clone()),
-            Self::ExternalHandler(_) => None,
-            Self::Export(e) => Some(e.name.clone()),
-        }
-    }
-
-    pub fn route(&self) -> Option<String> {
-        match self {
-            Self::LocalHandler(h) => Some(h.route.clone()),
-            Self::ExternalHandler(h) => Some(h.route.clone()),
-            Self::Export(_) => None,
-        }
-    }
-
     pub fn files(&self) -> Vec<String> {
         match self {
             Self::LocalHandler(h) => h.files.clone().unwrap_or_default(),
@@ -209,14 +193,6 @@ impl HippoFactsEntry {
             Self::Export(_) => None,
         }
     }
-
-    pub fn export_id(&self) -> Option<String> {
-        match self {
-            Self::LocalHandler(_) => None,
-            Self::ExternalHandler(_) => None,
-            Self::Export(e) => Some(e.id.clone()),
-        }
-    }
 }
 
 fn no_handlers() -> anyhow::Error {
@@ -226,7 +202,33 @@ fn no_handlers() -> anyhow::Error {
 #[cfg(test)]
 mod test {
     use super::*;
-
+    
+    impl HippoFactsEntry {
+        pub fn name(&self) -> Option<String> {
+            match self {
+                Self::LocalHandler(h) => Some(h.name.clone()),
+                Self::ExternalHandler(_) => None,
+                Self::Export(e) => Some(e.name.clone()),
+            }
+        }
+    
+        pub fn route(&self) -> Option<String> {
+            match self {
+                Self::LocalHandler(h) => Some(h.route.clone()),
+                Self::ExternalHandler(h) => Some(h.route.clone()),
+                Self::Export(_) => None,
+            }
+        }
+    
+        pub fn export_id(&self) -> Option<String> {
+            match self {
+                Self::LocalHandler(_) => None,
+                Self::ExternalHandler(_) => None,
+                Self::Export(e) => Some(e.id.clone()),
+            }
+        }
+    }
+    
     #[test]
     fn test_can_read_hippo_facts() {
         let raw: RawHippoFacts = toml::from_str(

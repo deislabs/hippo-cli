@@ -112,7 +112,9 @@ impl TryFrom<&RawHippoFacts> for HippoFacts {
     fn try_from(raw: &RawHippoFacts) -> anyhow::Result<Self> {
         let handler_vec = raw.handler.clone().unwrap_or_default();
         let export_vec = raw.export.clone().unwrap_or_default();
-        let entries = handler_vec.iter().map(HippoFactsEntry::try_from)
+        let entries = handler_vec
+            .iter()
+            .map(HippoFactsEntry::try_from)
             .chain(export_vec.iter().map(HippoFactsEntry::try_from))
             .collect::<anyhow::Result<Vec<_>>>()?;
         if entries.is_empty() {
@@ -136,18 +138,16 @@ impl TryFrom<&RawHandler> for HippoFactsEntry {
             _ => Err(anyhow::anyhow!("Route '{}' must specify exactly one of 'name' and 'external'", raw.route)),
         }?;
         let entry = match handler_module {
-            HandlerModule::File(name) =>
-                Self::LocalHandler(LocalHandler {
-                    name,
-                    route: raw.route.clone(),
-                    files: raw.files.clone(),
-                }),
-            HandlerModule::External(external) =>
-                Self::ExternalHandler(ExternalHandler {
-                    external,
-                    route: raw.route.clone(),
-                    files: raw.files.clone(),
-                })
+            HandlerModule::File(name) => Self::LocalHandler(LocalHandler {
+                name,
+                route: raw.route.clone(),
+                files: raw.files.clone(),
+            }),
+            HandlerModule::External(external) => Self::ExternalHandler(ExternalHandler {
+                external,
+                route: raw.route.clone(),
+                files: raw.files.clone(),
+            }),
         };
         Ok(entry)
     }
@@ -269,7 +269,8 @@ mod test {
 
     #[test]
     fn test_parse_externals() {
-        let facts = HippoFacts::read_from("./testdata/external1/HIPPOFACTS").expect("error reading facts file");
+        let facts = HippoFacts::read_from("./testdata/external1/HIPPOFACTS")
+            .expect("error reading facts file");
 
         assert_eq!("toastbattle", &facts.bindle.name);
 
@@ -285,7 +286,8 @@ mod test {
 
     #[test]
     fn test_parse_exports() {
-        let facts = HippoFacts::read_from("./testdata/lib1/HIPPOFACTS").expect("error reading facts file");
+        let facts =
+            HippoFacts::read_from("./testdata/lib1/HIPPOFACTS").expect("error reading facts file");
 
         assert_eq!("server", &facts.bindle.name);
 
@@ -312,7 +314,11 @@ mod test {
 
         assert!(facts.is_err());
         if let Err(e) = facts {
-            assert!(e.to_string().contains("No handlers"), "check error message is helpful: '{}'", e);
+            assert!(
+                e.to_string().contains("No handlers"),
+                "check error message is helpful: '{}'",
+                e
+            );
         }
     }
 }

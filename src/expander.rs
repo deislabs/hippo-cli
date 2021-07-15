@@ -177,19 +177,14 @@ fn expand_all_external_ref_dependencies_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let parcel_lists = hippofacts
-        .entries
-        .iter()
-        .map(|handler| match &handler {
-            HippoFactsEntry::ExternalHandler(e) => {
-                expand_one_external_ref_dependencies_to_parcels(
-                    &e.external,
-                    expansion_context,
-                    &group_name(handler),
-                )
-            }
-            _ => Ok(vec![]),
-        });
+    let parcel_lists = hippofacts.entries.iter().map(|handler| match &handler {
+        HippoFactsEntry::ExternalHandler(e) => expand_one_external_ref_dependencies_to_parcels(
+            &e.external,
+            expansion_context,
+            &group_name(handler),
+        ),
+        _ => Ok(vec![]),
+    });
     let parcels = flatten_or_fail(parcel_lists)?;
     Ok(merge_memberships(parcels))
 }
@@ -273,7 +268,14 @@ fn try_convert_one_match_to_parcel(
         Err(e) => Err(anyhow::anyhow!("Couldn't expand pattern: {}", e)),
         Ok(path) => {
             let features = vec![("file", "true")];
-            convert_one_match_to_parcel(path, expansion_context, features, None, Some(member_of), None)
+            convert_one_match_to_parcel(
+                path,
+                expansion_context,
+                features,
+                None,
+                Some(member_of),
+                None,
+            )
         }
     }
 }
@@ -454,12 +456,18 @@ where
 
 fn check_for_name_clashes(
     external_dependent_parcels: &Vec<Parcel>,
-    file_parcels: &Vec<Parcel>
+    file_parcels: &Vec<Parcel>,
 ) -> anyhow::Result<()> {
-    let file_parcel_names: HashSet<_> = file_parcels.iter().map(|p| p.label.name.to_owned()).collect();
+    let file_parcel_names: HashSet<_> = file_parcels
+        .iter()
+        .map(|p| p.label.name.to_owned())
+        .collect();
     for parcel in external_dependent_parcels {
         if file_parcel_names.contains(&parcel.label.name) {
-            return Err(anyhow::anyhow!("{} occurs both as a local file and as a dependency of an external reference", parcel.label.name));
+            return Err(anyhow::anyhow!(
+                "{} occurs both as a local file and as a dependency of an external reference",
+                parcel.label.name
+            ));
         }
     }
     Ok(())
@@ -552,11 +560,17 @@ mod test {
     }
 
     fn parcel_memberships<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Vec<String> {
-        parcel_conditions(invoice, parcel_name).member_of.as_ref().unwrap()
+        parcel_conditions(invoice, parcel_name)
+            .member_of
+            .as_ref()
+            .unwrap()
     }
 
     fn parcel_requirements<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Vec<String> {
-        parcel_conditions(invoice, parcel_name).requires.as_ref().unwrap()
+        parcel_conditions(invoice, parcel_name)
+            .requires
+            .as_ref()
+            .unwrap()
     }
 
     fn expand_test_invoice(name: &str) -> anyhow::Result<Invoice> {
@@ -894,7 +908,9 @@ mod test {
         if let Err(e) = invoice {
             let message = format!("{}", e);
             assert!(message.contains("thumbnails.db"));
-            assert!(message.contains("occurs both as a local file and as a dependency of an external reference"));
+            assert!(message.contains(
+                "occurs both as a local file and as a dependency of an external reference"
+            ));
         }
     }
 
@@ -908,8 +924,7 @@ mod test {
 
         match exported_parcel.label.annotations.as_ref() {
             None => assert!(false, "No annotations on the exported parcel"),
-            Some(map) =>
-                assert_eq!("serve_all_the_things", map.get("wagi_handler_id").unwrap()),
+            Some(map) => assert_eq!("serve_all_the_things", map.get("wagi_handler_id").unwrap()),
         };
     }
 
@@ -919,9 +934,18 @@ mod test {
         let parcels = invoice.parcel.as_ref().unwrap();
         assert_eq!(4, parcels.len());
 
-        assert_eq!("wasm/gallery.wasm-image_gallery-files", parcel_requirements(&invoice, "wasm/gallery.wasm")[0]);
+        assert_eq!(
+            "wasm/gallery.wasm-image_gallery-files",
+            parcel_requirements(&invoice, "wasm/gallery.wasm")[0]
+        );
 
-        assert_eq!("wasm/gallery.wasm-image_gallery-files", parcel_memberships(&invoice, "gallery/images.db")[0]);
-        assert_eq!("wasm/gallery.wasm-image_gallery-files", parcel_memberships(&invoice, "gallery/thumbnails.db")[0]);
+        assert_eq!(
+            "wasm/gallery.wasm-image_gallery-files",
+            parcel_memberships(&invoice, "gallery/images.db")[0]
+        );
+        assert_eq!(
+            "wasm/gallery.wasm-image_gallery-files",
+            parcel_memberships(&invoice, "gallery/thumbnails.db")[0]
+        );
     }
 }

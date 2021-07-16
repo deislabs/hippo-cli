@@ -118,9 +118,10 @@ async fn main() -> anyhow::Result<()> {
     let staging_dir_arg = args.value_of(ARG_STAGING_DIR);
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
     let output_format_arg = args.value_of(ARG_OUTPUT).unwrap();
-    let push_to = match args.value_of(ARG_ACTION) {
-        None | Some(ACTION_PREPARE) => None,
-        _ => args.value_of(ARG_BINDLE_URL).map(|s| s.to_owned()),
+    let bindle_url = args.value_of(ARG_BINDLE_URL).map(|s| s.to_owned());
+    let bindle_settings = match args.value_of(ARG_ACTION) {
+        None | Some(ACTION_PREPARE) => BindleSettings::NoPush(bindle_url),
+        _ => BindleSettings::Push(bindle_url.ok_or_else(|| anyhow::anyhow!("Bindle URL must be set for this action"))?),
     };
     let hippo_url = match args.value_of(ARG_ACTION) {
         Some(ACTION_ALL) => args.value_of(ARG_HIPPO_URL).map(|s| s.to_owned()),
@@ -161,7 +162,7 @@ async fn main() -> anyhow::Result<()> {
         &destination,
         invoice_versioning,
         output_format,
-        push_to,
+        bindle_settings,
         notify_to,
     )
     .await
@@ -172,7 +173,7 @@ async fn run(
     destination: impl AsRef<std::path::Path>,
     invoice_versioning: InvoiceVersioning,
     output_format: OutputFormat,
-    push_to: Option<String>,
+    bindle_settings: BindleSettings,
     notify_to: Option<hippo_notifier::ConnectionInfo>,
 ) -> anyhow::Result<()> {
     let spec = HippoFacts::read_from(&source)?;
@@ -184,7 +185,7 @@ async fn run(
         .to_path_buf();
 
     // Do this outside the `expand` function so `expand` is more testable
-    let external_invoices = prefetch_required_invoices(&spec, &push_to).await?;
+    let external_invoices = prefetch_required_invoices(&spec, bindle_settings.bindle_url()).await?;
 
     let expansion_context = ExpansionContext {
         relative_to: source_dir.clone(),
@@ -197,7 +198,7 @@ async fn run(
     let writer = BindleWriter::new(&source_dir, &destination);
     writer.write(&invoice).await?;
 
-    if let Some(url) = &push_to {
+    if let BindleSettings::Push(url) = &&bindle_settings {
         bindle_pusher::push_all(&destination, &invoice.bindle.id, &url).await?;
         if let Some(hippo_url) = &notify_to {
             hippo_notifier::register(&invoice.bindle.id, &hippo_url).await?;
@@ -208,17 +209,17 @@ async fn run(
     match output_format {
         OutputFormat::None => (),
         OutputFormat::Id => println!("{}", &invoice.bindle.id),
-        OutputFormat::Message => {
-            if push_to.is_some() {
-                println!("pushed: {}", &invoice.bindle.id);
-            } else {
+        OutputFormat::Message => match &bindle_settings {
+            BindleSettings::Push(_) =>
+                println!("pushed: {}", &invoice.bindle.id),
+            BindleSettings::NoPush(_) => {
                 println!("id:      {}", &invoice.bindle.id);
                 println!(
                     "command: bindle push -p {} {}",
                     dunce::canonicalize(&destination)?.to_string_lossy(),
                     &invoice.bindle.id
                 );
-            }
+            },
         }
     }
 
@@ -227,7 +228,7 @@ async fn run(
 
 async fn prefetch_required_invoices(
     hippofacts: &HippoFacts,
-    bindle_url: &Option<String>,
+    bindle_url: Option<String>,
 ) -> anyhow::Result<HashMap<bindle::Id, bindle::Invoice>> {
     let mut map = HashMap::new();
 
@@ -274,6 +275,20 @@ impl OutputFormat {
             OutputFormat::Id
         } else {
             OutputFormat::Message
+        }
+    }
+}
+
+enum BindleSettings {
+    NoPush(Option<String>),
+    Push(String),
+}
+
+impl BindleSettings {
+    pub fn bindle_url(&self) -> Option<String> {
+        match self {
+            Self::NoPush(opt) => opt.clone(),
+            Self::Push(url) => Some(url.clone()),
         }
     }
 }

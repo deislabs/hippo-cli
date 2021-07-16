@@ -214,6 +214,24 @@ parcel in your invoice that points to the same blob but with a `requires` condit
 the handler group. It also creates parcels for any parcels that the handler `requires`
 in its original bindle.
 
+### Reusable library modules
+
+To create a 'library' parcel that can be referenced as an external handler, provide a
+`export` section.  This is similar to a local handler except instead of a `route` it
+has an `id` - this is the name by which it can be referenced (it gets mapped to the
+`wagi_handler_id` annotation).  For example:
+
+```toml
+[[export]]
+name = "gallery.wasm"
+id = "gallery"
+files = ["cache/*.db"]
+```
+
+**NOTE:** If your spec consists only of exports, you should not notify Hippo, because
+there will be no application mapped to the resultant bindle. Pass `-a bindle` to
+push to the Bindle server but not register it with Hippo.
+
 ## Running hippofactory
 
 As a developer you can run `hippofactory .` in your `HIPPOFACTS` directory to assemble all matching

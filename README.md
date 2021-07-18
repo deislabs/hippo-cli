@@ -216,7 +216,7 @@ in its original bindle.
 
 ### Reusable library modules
 
-To create a 'library' parcel that can be referenced as an external handler, provide a
+To create a 'library' parcel that can be referenced as an external handler, provide an
 `export` section.  This is similar to a local handler except instead of a `route` it
 has an `id` - this is the name by which it can be referenced (it gets mapped to the
 `wagi_handler_id` annotation).  For example:

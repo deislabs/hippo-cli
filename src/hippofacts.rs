@@ -11,6 +11,7 @@ struct RawHippoFacts {
     pub bindle: BindleSpec,
     pub annotations: Option<AnnotationMap>,
     pub handler: Option<Vec<RawHandler>>,
+    pub export: Option<Vec<RawExport>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -33,6 +34,14 @@ struct RawHandler {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct RawExport {
+    pub name: String,
+    pub id: String,
+    pub files: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RawExternalRef {
     pub bindle_id: String,
     pub handler_id: String,
@@ -41,23 +50,42 @@ struct RawExternalRef {
 pub struct HippoFacts {
     pub bindle: BindleSpec,
     pub annotations: Option<AnnotationMap>,
-    pub handler: Vec<Handler>,
+    pub entries: Vec<HippoFactsEntry>,
 }
 
-pub struct Handler {
-    pub handler_module: HandlerModule,
+pub struct LocalHandler {
+    pub name: String,
     pub route: String,
     pub files: Option<Vec<String>>,
 }
 
-pub enum HandlerModule {
+pub struct ExternalHandler {
+    pub external: ExternalRef,
+    pub route: String,
+    pub files: Option<Vec<String>>,
+}
+
+enum HandlerModule {
     File(String),
     External(ExternalRef),
 }
 
+#[derive(Clone)]
 pub struct ExternalRef {
     pub bindle_id: bindle::Id,
     pub handler_id: String,
+}
+
+pub struct Export {
+    pub name: String,
+    pub id: String,
+    pub files: Vec<String>,
+}
+
+pub enum HippoFactsEntry {
+    LocalHandler(LocalHandler),
+    ExternalHandler(ExternalHandler),
+    Export(Export),
 }
 
 impl HippoFacts {
@@ -82,30 +110,46 @@ impl TryFrom<&RawHippoFacts> for HippoFacts {
     type Error = anyhow::Error;
 
     fn try_from(raw: &RawHippoFacts) -> anyhow::Result<Self> {
-        let handler_vec = raw.handler.as_ref().ok_or_else(no_handlers)?;
-        let handler: anyhow::Result<Vec<_>> = handler_vec.iter().map(Handler::try_from).collect();
+        let handler_vec = raw.handler.clone().unwrap_or_default();
+        let export_vec = raw.export.clone().unwrap_or_default();
+        let entries = handler_vec
+            .iter()
+            .map(HippoFactsEntry::try_from)
+            .chain(export_vec.iter().map(HippoFactsEntry::try_from))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        if entries.is_empty() {
+            return Err(no_handlers());
+        }
         Ok(Self {
             bindle: raw.bindle.clone(),
             annotations: raw.annotations.clone(),
-            handler: handler?,
+            entries,
         })
     }
 }
 
-impl TryFrom<&RawHandler> for Handler {
+impl TryFrom<&RawHandler> for HippoFactsEntry {
     type Error = anyhow::Error;
 
-    fn try_from(raw: &RawHandler) -> anyhow::Result<Handler> {
+    fn try_from(raw: &RawHandler) -> anyhow::Result<Self> {
         let handler_module = match (&raw.name, &raw.external) {
             (Some(name), None) => Ok(HandlerModule::File(name.clone())),
             (None, Some(external_ref)) => Ok(HandlerModule::External(ExternalRef::try_from(external_ref)?)),
             _ => Err(anyhow::anyhow!("Route '{}' must specify exactly one of 'name' and 'external'", raw.route)),
         }?;
-        Ok(Self {
-            handler_module,
-            route: raw.route.clone(),
-            files: raw.files.clone(),
-        })
+        let entry = match handler_module {
+            HandlerModule::File(name) => Self::LocalHandler(LocalHandler {
+                name,
+                route: raw.route.clone(),
+                files: raw.files.clone(),
+            }),
+            HandlerModule::External(external) => Self::ExternalHandler(ExternalHandler {
+                external,
+                route: raw.route.clone(),
+                files: raw.files.clone(),
+            }),
+        };
+        Ok(entry)
     }
 }
 
@@ -121,6 +165,36 @@ impl TryFrom<&RawExternalRef> for ExternalRef {
     }
 }
 
+impl TryFrom<&RawExport> for HippoFactsEntry {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: &RawExport) -> anyhow::Result<Self> {
+        Ok(Self::Export(Export {
+            id: raw.id.clone(),
+            name: raw.name.clone(),
+            files: raw.files.clone().unwrap_or_default(),
+        }))
+    }
+}
+
+impl HippoFactsEntry {
+    pub fn files(&self) -> Vec<String> {
+        match self {
+            Self::LocalHandler(h) => h.files.clone().unwrap_or_default(),
+            Self::ExternalHandler(h) => h.files.clone().unwrap_or_default(),
+            Self::Export(e) => e.files.clone(),
+        }
+    }
+
+    pub fn external_ref(&self) -> Option<ExternalRef> {
+        match self {
+            Self::LocalHandler(_) => None,
+            Self::ExternalHandler(h) => Some(h.external.clone()),
+            Self::Export(_) => None,
+        }
+    }
+}
+
 fn no_handlers() -> anyhow::Error {
     anyhow::anyhow!("No handlers defined in artifact spec")
 }
@@ -128,7 +202,33 @@ fn no_handlers() -> anyhow::Error {
 #[cfg(test)]
 mod test {
     use super::*;
-
+    
+    impl HippoFactsEntry {
+        pub fn name(&self) -> Option<String> {
+            match self {
+                Self::LocalHandler(h) => Some(h.name.clone()),
+                Self::ExternalHandler(_) => None,
+                Self::Export(e) => Some(e.name.clone()),
+            }
+        }
+    
+        pub fn route(&self) -> Option<String> {
+            match self {
+                Self::LocalHandler(h) => Some(h.route.clone()),
+                Self::ExternalHandler(h) => Some(h.route.clone()),
+                Self::Export(_) => None,
+            }
+        }
+    
+        pub fn export_id(&self) -> Option<String> {
+            match self {
+                Self::LocalHandler(_) => None,
+                Self::ExternalHandler(_) => None,
+                Self::Export(e) => Some(e.id.clone()),
+            }
+        }
+    }
+    
     #[test]
     fn test_can_read_hippo_facts() {
         let raw: RawHippoFacts = toml::from_str(
@@ -154,44 +254,71 @@ mod test {
         assert_eq!("birds", &facts.bindle.name);
         assert_eq!(&None, &facts.annotations);
 
-        let handlers = &facts.handler;
+        let handlers = &facts.entries;
 
         assert_eq!(2, handlers.len());
 
-        if let HandlerModule::File(name) = &handlers[0].handler_module {
-            assert_eq!("penguin.wasm", name);
-        } else {
-            assert!(false, "handler 0 should have been File");
-        }
-        assert_eq!("/birds/flightless", &handlers[0].route);
-        let files0 = handlers[0].files.as_ref().expect("Expected files");
-        assert_eq!(3, files0.len());
+        assert_eq!("penguin.wasm", handlers[0].name().unwrap());
+        assert_eq!("/birds/flightless", &handlers[0].route().unwrap());
+        assert_eq!(3, handlers[0].files().len());
 
-        if let HandlerModule::File(name) = &handlers[1].handler_module {
-            assert_eq!("cassowary.wasm", name);
-        } else {
-            assert!(false, "handler 1 should have been File");
-        }
-        assert_eq!("/birds/savage/rending", &handlers[1].route);
-        assert_eq!(None, handlers[1].files);
+        assert_eq!("cassowary.wasm", handlers[1].name().unwrap());
+        assert_eq!("/birds/savage/rending", &handlers[1].route().unwrap());
+        assert_eq!(0, handlers[1].files().len());
     }
 
     #[test]
     fn test_parse_externals() {
-        let facts = HippoFacts::read_from("./testdata/external1/HIPPOFACTS").expect("error reading facts file");
+        let facts = HippoFacts::read_from("./testdata/external1/HIPPOFACTS")
+            .expect("error reading facts file");
 
         assert_eq!("toastbattle", &facts.bindle.name);
 
-        let handlers = &facts.handler;
+        let handlers = &facts.entries;
 
         assert_eq!(2, handlers.len());
 
-        if let HandlerModule::External(ext) = &handlers[1].handler_module {
-            assert_eq!("deislabs/fileserver", ext.bindle_id.name());
-            assert_eq!("1.0.3", ext.bindle_id.version_string());
-            assert_eq!("static", ext.handler_id);
-        } else {
-            assert!(false, "handler 1 should have been External");
+        let ext = handlers[1].external_ref().unwrap();
+        assert_eq!("deislabs/fileserver", ext.bindle_id.name());
+        assert_eq!("1.0.3", ext.bindle_id.version_string());
+        assert_eq!("static", ext.handler_id);
+    }
+
+    #[test]
+    fn test_parse_exports() {
+        let facts =
+            HippoFacts::read_from("./testdata/lib1/HIPPOFACTS").expect("error reading facts file");
+
+        assert_eq!("server", &facts.bindle.name);
+
+        assert_eq!(2, facts.entries.len());
+
+        let server_export = &facts.entries[0];
+        assert_eq!("wasm/server.wasm", server_export.name().unwrap());
+        assert_eq!("serve_all_the_things", server_export.export_id().unwrap());
+        assert_eq!(0, server_export.files().len());
+    }
+
+    #[test]
+    fn test_no_handlers_no_exports_no_service() {
+        let raw: RawHippoFacts = toml::from_str(
+            r#"
+        # HIPPO FACT: Hippos are the second heaviest land animal after the elephant
+        [bindle]
+        name = "nope"
+        version = "1.2.4"
+        "#,
+        )
+        .expect("error parsing test TOML");
+        let facts = HippoFacts::try_from(&raw);
+
+        assert!(facts.is_err());
+        if let Err(e) = facts {
+            assert!(
+                e.to_string().contains("No handlers"),
+                "check error message is helpful: '{}'",
+                e
+            );
         }
     }
 }

@@ -1,0 +1,12 @@
+[bindle]
+name = "server"
+version = "1.0.0"
+
+[[export]]
+name = "wasm/server.wasm"
+id = "serve_all_the_things"
+
+[[export]]
+name = "wasm/gallery.wasm"
+id = "image_gallery"
+files = ["gallery/images.db", "gallery/thumbnails.db"]

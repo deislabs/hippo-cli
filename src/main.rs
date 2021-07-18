@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bindle_writer::BindleWriter;
 use expander::{ExpansionContext, InvoiceVersioning};
-use hippofacts::{Handler, HandlerModule, HippoFacts};
+use hippofacts::{HippoFacts, HippoFactsEntry};
 
 mod bindle_pusher;
 mod bindle_utils;
@@ -233,7 +233,7 @@ async fn prefetch_required_invoices(
     let mut map = HashMap::new();
 
     let external_refs: Vec<bindle::Id> = hippofacts
-        .handler
+        .entries
         .iter()
         .flat_map(external_bindle_id)
         .collect();
@@ -254,11 +254,8 @@ async fn prefetch_required_invoices(
     Ok(map)
 }
 
-fn external_bindle_id(handler: &Handler) -> Option<bindle::Id> {
-    match &handler.handler_module {
-        HandlerModule::External(ext) => Some(ext.bindle_id.clone()),
-        _ => None,
-    }
+fn external_bindle_id(entry: &HippoFactsEntry) -> Option<bindle::Id> {
+    entry.external_ref().map(|ext| ext.bindle_id.clone())
 }
 
 enum OutputFormat {

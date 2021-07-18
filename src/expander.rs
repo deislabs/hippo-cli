@@ -9,8 +9,7 @@ use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
 use crate::bindle_utils::InvoiceHelpers;
-use crate::hippofacts::{ExternalRef, HandlerModule};
-use crate::{hippofacts::Handler, HippoFacts};
+use crate::hippofacts::{ExternalRef, HippoFacts, HippoFactsEntry};
 
 pub struct ExpansionContext {
     pub relative_to: PathBuf,
@@ -69,8 +68,8 @@ pub fn expand(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Invoice> {
-    let groups = expand_all_handlers_to_groups(&hippofacts)?;
-    let handler_parcels = expand_handler_modules_to_parcels(&hippofacts, expansion_context)?;
+    let groups = expand_all_entries_to_groups(&hippofacts)?;
+    let handler_parcels = expand_module_entries_to_parcels(&hippofacts, expansion_context)?;
     let external_dependent_parcels =
         expand_all_external_ref_dependencies_to_parcels(&hippofacts, expansion_context)?;
     let file_parcels = expand_all_files_to_parcels(&hippofacts, expansion_context)?;
@@ -108,58 +107,68 @@ fn expand_id(
     Ok(id)
 }
 
-fn expand_all_handlers_to_groups(hippofacts: &HippoFacts) -> anyhow::Result<Vec<Group>> {
-    let groups = hippofacts.handler.iter().map(expand_to_group).collect();
+fn expand_all_entries_to_groups(hippofacts: &HippoFacts) -> anyhow::Result<Vec<Group>> {
+    let groups = hippofacts.entries.iter().map(expand_to_group).collect();
     Ok(groups)
 }
 
-fn expand_to_group(handler: &Handler) -> Group {
+fn expand_to_group(entry: &HippoFactsEntry) -> Group {
     Group {
-        name: group_name(handler),
+        name: group_name(entry),
         required: None,
         satisfied_by: None,
     }
 }
 
-fn group_name(handler: &Handler) -> String {
-    match &handler.handler_module {
-        HandlerModule::File(name) => format!("{}-files", name),
-        HandlerModule::External(ext) => format!(
+fn group_name(entry: &HippoFactsEntry) -> String {
+    match entry {
+        HippoFactsEntry::LocalHandler(h) => format!("{}-files", h.name),
+        HippoFactsEntry::ExternalHandler(h) => format!(
             "import:{}:{}-at-{}-files",
-            ext.bindle_id, ext.handler_id, &handler.route
+            &h.external.bindle_id, &h.external.handler_id, &h.route
         ),
+        HippoFactsEntry::Export(e) => format!("{}-{}-files", e.name, e.id),
     }
 }
 
-fn expand_handler_modules_to_parcels(
+fn expand_module_entries_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
     let parcels = hippofacts
-        .handler
+        .entries
         .iter()
-        .map(|handler| expand_one_handler_module_to_parcel(handler, expansion_context));
+        .map(|handler| expand_one_module_entry_to_parcel(handler, expansion_context));
     parcels.collect()
 }
 
-fn expand_one_handler_module_to_parcel(
-    handler: &Handler,
+fn expand_one_module_entry_to_parcel(
+    entry: &HippoFactsEntry,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Parcel> {
-    match &handler.handler_module {
-        HandlerModule::File(name) => convert_one_match_to_parcel(
-            PathBuf::from(expansion_context.to_absolute(&name)),
+    match &entry {
+        HippoFactsEntry::LocalHandler(h) => convert_one_match_to_parcel(
+            PathBuf::from(expansion_context.to_absolute(&h.name)),
             expansion_context,
-            vec![("route", &handler.route), ("file", "false")],
+            vec![("route", &h.route), ("file", "false")],
             None,
-            Some(&group_name(handler)),
+            None,
+            Some(&group_name(entry)),
         ),
-        HandlerModule::External(external_ref) => convert_one_ref_to_parcel(
-            external_ref,
+        HippoFactsEntry::ExternalHandler(e) => convert_one_ref_to_parcel(
+            &e.external,
             expansion_context,
-            vec![("route", &handler.route), ("file", "false")],
+            vec![("route", &e.route), ("file", "false")],
             None,
-            Some(&group_name(handler)),
+            Some(&group_name(entry)),
+        ),
+        HippoFactsEntry::Export(e) => convert_one_match_to_parcel(
+            PathBuf::from(expansion_context.to_absolute(&e.name)),
+            expansion_context,
+            vec![("file", "false")],
+            Some(vec![("wagi_handler_id", &e.id)]),
+            None,
+            Some(&group_name(entry)),
         ),
     }
 }
@@ -168,19 +177,14 @@ fn expand_all_external_ref_dependencies_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let parcel_lists = hippofacts
-        .handler
-        .iter()
-        .map(|handler| match &handler.handler_module {
-            HandlerModule::External(external_ref) => {
-                expand_one_external_ref_dependencies_to_parcels(
-                    external_ref,
-                    expansion_context,
-                    &group_name(handler),
-                )
-            }
-            HandlerModule::File(_) => Ok(vec![]),
-        });
+    let parcel_lists = hippofacts.entries.iter().map(|handler| match &handler {
+        HippoFactsEntry::ExternalHandler(e) => expand_one_external_ref_dependencies_to_parcels(
+            &e.external,
+            expansion_context,
+            &group_name(handler),
+        ),
+        _ => Ok(vec![]),
+    });
     let parcels = flatten_or_fail(parcel_lists)?;
     Ok(merge_memberships(parcels))
 }
@@ -225,7 +229,7 @@ fn expand_all_files_to_parcels(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
     let parcel_lists = hippofacts
-        .handler
+        .entries
         .iter()
         .map(|handler| expand_files_to_parcels(handler, expansion_context));
     let parcels = flatten_or_fail(parcel_lists)?;
@@ -233,16 +237,13 @@ fn expand_all_files_to_parcels(
 }
 
 fn expand_files_to_parcels(
-    handler: &Handler,
+    entry: &HippoFactsEntry,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let patterns: Vec<String> = match &handler.files {
-        None => vec![],
-        Some(files) => files.clone(),
-    };
+    let patterns = entry.files();
     let parcels = patterns
         .iter()
-        .map(|f| expand_file_to_parcels(f, expansion_context, &group_name(handler)));
+        .map(|f| expand_file_to_parcels(f, expansion_context, &group_name(entry)));
     flatten_or_fail(parcels)
 }
 
@@ -267,7 +268,14 @@ fn try_convert_one_match_to_parcel(
         Err(e) => Err(anyhow::anyhow!("Couldn't expand pattern: {}", e)),
         Ok(path) => {
             let features = vec![("file", "true")];
-            convert_one_match_to_parcel(path, expansion_context, features, Some(member_of), None)
+            convert_one_match_to_parcel(
+                path,
+                expansion_context,
+                features,
+                None,
+                Some(member_of),
+                None,
+            )
         }
     }
 }
@@ -276,6 +284,7 @@ fn convert_one_match_to_parcel(
     path: PathBuf,
     expansion_context: &ExpansionContext,
     wagi_features: Vec<(&str, &str)>,
+    wagi_annotations: Option<Vec<(&str, &str)>>,
     member_of: Option<&str>,
     requires: Option<&str>,
 ) -> anyhow::Result<Parcel> {
@@ -295,6 +304,7 @@ fn convert_one_match_to_parcel(
             .first_or_octet_stream()
             .to_string();
 
+        let annotations = wagi_annotations.map(map_of);
         let feature = Some(wagi_feature_of(wagi_features));
 
         Ok(Parcel {
@@ -304,7 +314,7 @@ fn convert_one_match_to_parcel(
                 media_type,
                 size,
                 feature,
-                ..Label::default()
+                annotations,
             },
             conditions: Some(Condition {
                 member_of: vector_of(member_of),
@@ -446,12 +456,18 @@ where
 
 fn check_for_name_clashes(
     external_dependent_parcels: &Vec<Parcel>,
-    file_parcels: &Vec<Parcel>
+    file_parcels: &Vec<Parcel>,
 ) -> anyhow::Result<()> {
-    let file_parcel_names: HashSet<_> = file_parcels.iter().map(|p| p.label.name.to_owned()).collect();
+    let file_parcel_names: HashSet<_> = file_parcels
+        .iter()
+        .map(|p| p.label.name.to_owned())
+        .collect();
     for parcel in external_dependent_parcels {
         if file_parcel_names.contains(&parcel.label.name) {
-            return Err(anyhow::anyhow!("{} occurs both as a local file and as a dependency of an external reference", parcel.label.name));
+            return Err(anyhow::anyhow!(
+                "{} occurs both as a local file and as a dependency of an external reference",
+                parcel.label.name
+            ));
         }
     }
     Ok(())
@@ -474,10 +490,10 @@ fn vector_of(option: Option<&str>) -> Option<Vec<String>> {
 }
 
 fn wagi_feature_of(values: Vec<(&str, &str)>) -> BTreeMap<String, BTreeMap<String, String>> {
-    BTreeMap::from_iter(vec![("wagi".to_owned(), feature_map_of(values))])
+    BTreeMap::from_iter(vec![("wagi".to_owned(), map_of(values))])
 }
 
-fn feature_map_of(values: Vec<(&str, &str)>) -> BTreeMap<String, String> {
+fn map_of(values: Vec<(&str, &str)>) -> BTreeMap<String, String> {
     values
         .into_iter()
         .map(|(k, v)| (k.to_owned(), v.to_owned()))
@@ -514,7 +530,7 @@ mod test {
             .unwrap()
             .iter()
             .find(|p| p.label.name == parcel_name)
-            .unwrap()
+            .expect(&format!("No parcel named {}", parcel_name))
     }
 
     fn parcel_feature_value<'a>(
@@ -539,6 +555,20 @@ mod test {
     fn parcel_conditions<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Condition {
         parcel_named(invoice, parcel_name)
             .conditions
+            .as_ref()
+            .unwrap()
+    }
+
+    fn parcel_memberships<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Vec<String> {
+        parcel_conditions(invoice, parcel_name)
+            .member_of
+            .as_ref()
+            .unwrap()
+    }
+
+    fn parcel_requirements<'a>(invoice: &'a Invoice, parcel_name: &str) -> &'a Vec<String> {
+        parcel_conditions(invoice, parcel_name)
+            .requires
             .as_ref()
             .unwrap()
     }
@@ -878,7 +908,44 @@ mod test {
         if let Err(e) = invoice {
             let message = format!("{}", e);
             assert!(message.contains("thumbnails.db"));
-            assert!(message.contains("occurs both as a local file and as a dependency of an external reference"));
+            assert!(message.contains(
+                "occurs both as a local file and as a dependency of an external reference"
+            ));
         }
+    }
+
+    #[test]
+    fn test_exports_have_the_wagi_handler_annotation() {
+        let invoice = expand_test_invoice("lib1").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        assert_eq!(4, parcels.len());
+
+        let exported_parcel = parcel_named(&invoice, "wasm/server.wasm");
+
+        match exported_parcel.label.annotations.as_ref() {
+            None => assert!(false, "No annotations on the exported parcel"),
+            Some(map) => assert_eq!("serve_all_the_things", map.get("wagi_handler_id").unwrap()),
+        };
+    }
+
+    #[test]
+    fn test_exports_bring_along_their_dependencies() {
+        let invoice = expand_test_invoice("lib1").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        assert_eq!(4, parcels.len());
+
+        assert_eq!(
+            "wasm/gallery.wasm-image_gallery-files",
+            parcel_requirements(&invoice, "wasm/gallery.wasm")[0]
+        );
+
+        assert_eq!(
+            "wasm/gallery.wasm-image_gallery-files",
+            parcel_memberships(&invoice, "gallery/images.db")[0]
+        );
+        assert_eq!(
+            "wasm/gallery.wasm-image_gallery-files",
+            parcel_memberships(&invoice, "gallery/thumbnails.db")[0]
+        );
     }
 }

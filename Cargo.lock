@@ -507,7 +507,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hippofactory"
+name = "hippo"
 version = "0.5.0"
 dependencies = [
  "anyhow",
@@ -517,7 +517,7 @@ dependencies = [
  "dunce",
  "futures",
  "glob",
- "hippo",
+ "hippo 0.1.0",
  "itertools",
  "mime_guess",
  "semver",

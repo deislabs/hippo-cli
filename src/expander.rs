@@ -83,6 +83,7 @@ pub fn expand(
     let invoice = Invoice {
         bindle_version: "1.0.0".to_owned(),
         yanked: None,
+        yanked_signature: None,
         bindle: BindleSpec {
             id: expand_id(&hippofacts.bindle, expansion_context)?,
             description: hippofacts.bindle.description.clone(),
@@ -315,6 +316,7 @@ fn convert_one_match_to_parcel(
                 size,
                 feature,
                 annotations,
+                origin: None,
             },
             conditions: Some(Condition {
                 member_of: vector_of(member_of),
@@ -359,6 +361,7 @@ fn convert_one_ref_to_parcel(
                 size: parcel.label.size,
                 annotations: annotation_do_not_stage_file(),
                 feature,
+                origin: None,
             },
             conditions: Some(Condition {
                 member_of: vector_of(member_of),

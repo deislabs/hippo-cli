@@ -9,6 +9,6 @@ pub async fn push_all(
 ) -> anyhow::Result<()> {
     let reader = StandaloneRead::new(&path, bindle_id).await?;
     let client = bindle::client::Client::new(base_url)?;
-    reader.push(&client).await?;
+    reader.push(&client).await.map_err(|e| anyhow::anyhow!("Error pushing bindle to server: {}", e))?;
     Ok(())
 }

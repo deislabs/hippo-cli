@@ -234,8 +234,9 @@ push to the Bindle server but not register it with Hippo.
 
 ## Running the Hippo Client
 
-As a developer you can run `hippo .` in your `HIPPOFACTS` directory to assemble all matching
-files and publish them as a bindle. In this mode, `hippo`:
+As a developer you can run `hippo push .` in your `HIPPOFACTS` directory to
+assemble all matching files and publish them as a bindle. In this mode,
+`hippo`:
 
 * Mangles the version with a prerelease segment
 * Stages to a temporary directory
@@ -250,10 +251,9 @@ requires authentication: pass the username in `HIPPO_USERNAME` and the password 
 `HIPPO_PASSWORD`. (The equivalent command line options are `--hippo-url`, `--hippo-username`
 and `--hippo-password`.)
 
-If you want to review the proposed bindle rather than pushing it, pass `--action prepare -d <staging_dir>`.
-This will stage the bindle to the specified directory but _not_ push it.  (If you later want
-to push it, you can do so using the separate `bindle` tool.) If you want to push the generated
-bindle but not notify Hippo, pass `--action bindle`.
+If you want to review the proposed bindle rather than pushing it, pass `hippo prepare -d <staging_dir> .`.
+This will stage the bindle to the specified directory but _not_ push it. If you want to push the
+generated bindle but not notify Hippo, use `hippo bindle .`.
 
 In a CI environment you can supply the `-v production` option to suppress version mangling.
 This will create and upload the bindle with the version from `HIPPOFACTS`, without the

@@ -53,14 +53,14 @@ jobs:
         shell: bash
         run: |
           mkdir _dist
-          cp README.md LICENSE target/release/hippofactory${{ matrix.config.extension }} _dist/
+          cp README.md LICENSE target/release/hippo${{ matrix.config.extension }} _dist/
           cd _dist
-          tar czf hippofactory-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz README.md LICENSE hippofactory${{ matrix.config.extension }}
+          tar czf hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz README.md LICENSE hippo${{ matrix.config.extension }}
 
       - uses: actions/upload-artifact@v1
         with:
-          name: hippofactory
-          path: _dist/hippofactory-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz
+          name: hippo
+          path: _dist/hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz
   # publish:
   #   name: publish release assets
   #   runs-on: ubuntu-latest
@@ -77,15 +77,15 @@ jobs:
   #     - name: download release assets
   #       uses: actions/download-artifact@v1
   #       with:
-  #         name: hippofactory
+  #         name: hippo
   #     - name: generate checksums
   #       run: |
-  #         cd hippofactory
+  #         cd hippo
   #         sha256sum * > checksums-${{ env.RELEASE_VERSION }}.txt
   #     - name: upload to azure
   #       uses: bacongobbler/azure-blob-storage-upload@main
   #       with:
-  #         source_dir: hippofactory
+  #         source_dir: hippo
   #         container_name: releases
   #         connection_string: ${{ secrets.AzureStorageConnectionString }}
   #         sync: false

@@ -61,7 +61,7 @@ impl BindleWriter {
     }
 
     async fn write_one_parcel(&self, parcels_dir: &PathBuf, parcel: &Parcel) -> anyhow::Result<()> {
-        if parcel.has_annotation("hippofactory_do_not_stage") {
+        if parcel.has_annotation("hippos_do_not_stage") {
             return Ok(());
         }
         let source_file = self.source_base_path.join(&parcel.label.name);

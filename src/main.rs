@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use bindle_writer::BindleWriter;
+use clap::{App, Arg, ArgMatches};
 use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::{HippoFacts, HippoFactsEntry};
 
@@ -19,143 +21,227 @@ const ARG_BINDLE_URL: &str = "bindle_server";
 const ARG_HIPPO_URL: &str = "hippo_url";
 const ARG_HIPPO_USERNAME: &str = "hippo_username";
 const ARG_HIPPO_PASSWORD: &str = "hippo_password";
-const ARG_ACTION: &str = "action";
 const ARG_INSECURE: &str = "insecure";
 
-const ACTION_ALL: &str = "all";
-const ACTION_BINDLE: &str = "bindle";
-const ACTION_PREPARE: &str = "prepare";
+const ABOUT_HIPPO: &str = r#"Create and manage Hippo applications.
+
+The hippo commandline utility provides many tools for managing Hippo applications,
+accounts, and configuration. To get started, try 'hippo --help'. To push an existing
+Hippo application to the Hippo server, use 'hippo push'.
+
+Many 'hippo' commands operate on a 'HIPPOFACTS' TOML file located in the same directory
+in which you are running the 'hippo' command.
+"#;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = clap::App::new(env!("CARGO_PKG_NAME"))
+    // Arguments necessary to build a bindle (but not push it)
+    // - ARG_HIPPOFACTS
+    // - ARG_VERSIONING
+    // - ARG_OUTPUT
+    // - ARG_BINDLE_URL
+    // - ARG_STAGING_DIR
+    let bindle_build_args = vec![
+        Arg::new(ARG_HIPPOFACTS)
+            .required(true)
+            .index(1)
+            .about("The artifacts spec (file or directory containing HIPPOFACTS file)"),
+        Arg::new(ARG_VERSIONING)
+            .possible_values(&["dev", "production"])
+            .default_value("dev")
+            .required(false)
+            .short('v')
+            .long("invoice-version")
+            .about("How to version the generated invoice"),
+        Arg::new(ARG_OUTPUT)
+            .possible_values(&["id", "message", "none"])
+            .default_value("message")
+            .required(false)
+            .short('o')
+            .long("output")
+            .about("What to print on success"),
+        Arg::new(ARG_BINDLE_URL)
+            .short('s')
+            .long("server")
+            .env("BINDLE_URL")
+            .about("The Bindle server to push the artifacts to"),
+        Arg::new(ARG_INSECURE)
+            .required(false)
+            .takes_value(false)
+            .short('k')
+            .long("insecure")
+            .about("If set, ignore server certificate errors"),
+        Arg::new(ARG_STAGING_DIR)
+            .takes_value(true)
+            .short('d')
+            .long("dir")
+            .about("The path to output the artifacts to. Required when doing a `hippo prepare`. Other commands will use a temp dir if this is not specified."),
+    ];
+
+    let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author("Deis Labs")
-        .about("Expands Hippo artifacts files for upload to application storage")
-        .arg(
-            clap::Arg::new(ARG_HIPPOFACTS)
-                .required(true)
-                .index(1)
-                .about("The artifacts spec (file or directory containing HIPPOFACTS file)"),
+        .about("The Hippo commandline client")
+        .long_about(ABOUT_HIPPO)
+        .subcommand(
+            App::new("push")
+                .about("Packages and uploads Hippo artifacts, notifying Hippo")
+                .args(&bindle_build_args)
+                .arg(
+                    Arg::new(ARG_HIPPO_URL)
+                        .long("hippo-url")
+                        .env("HIPPO_URL")
+                        .about("The Hippo service to push the artifacts to"),
+                )
+                .arg(
+                    Arg::new(ARG_HIPPO_USERNAME)
+                        .long("hippo-username")
+                        .env("HIPPO_USERNAME")
+                        .about("The username for connecting to Hippo"),
+                )
+                .arg(
+                    Arg::new(ARG_HIPPO_PASSWORD)
+                        .long("hippo-password")
+                        .env("HIPPO_PASSWORD")
+                        .about("The username for connecting to Hippo"),
+                ),
         )
-        .arg(
-            clap::Arg::new(ARG_STAGING_DIR)
-                .required_if_eq(ARG_ACTION, ACTION_PREPARE)
-                .takes_value(true)
-                .short('d')
-                .long("dir")
-                .about("The path to output the artifacts to (required with --action prepare, otherwise uses a temporary directory)"),
+        .subcommand(
+            App::new("prepare")
+                .about("Reads a HIPPOFACTS file and prepares a Bindle, caching it locally.")
+                .args(&bindle_build_args),
         )
-        .arg(
-            clap::Arg::new(ARG_VERSIONING)
-                .possible_values(&["dev", "production"])
-                .default_value("dev")
-                .required(false)
-                .short('v')
-                .long("invoice-version")
-                .about("How to version the generated invoice"),
-        )
-        .arg(
-            clap::Arg::new(ARG_OUTPUT)
-                .possible_values(&["id", "message", "none"])
-                .default_value("message")
-                .required(false)
-                .short('o')
-                .long("output")
-                .about("What to print on success"),
-        )
-        .arg(
-            clap::Arg::new(ARG_BINDLE_URL)
-                .required_if_eq_any(&[(ARG_ACTION, ACTION_ALL), (ARG_ACTION, ACTION_BINDLE)])
-                .short('s')
-                .long("server")
-                .env("BINDLE_URL")
-                .about("The Bindle server to push the artifacts to")
-        )
-        .arg(
-            clap::Arg::new(ARG_HIPPO_URL)
-                .required_if_eq(ARG_ACTION, ACTION_ALL)
-                .long("hippo-url")
-                .env("HIPPO_URL")
-                .about("The Hippo service to push the artifacts to")
-        )
-        .arg(
-            clap::Arg::new(ARG_HIPPO_USERNAME)
-                .required_if_eq(ARG_ACTION, ACTION_ALL)
-                .long("hippo-username")
-                .env("HIPPO_USERNAME")
-                .about("The username for connecting to Hippo")
-        )
-        .arg(
-            clap::Arg::new(ARG_HIPPO_PASSWORD)
-                .required_if_eq(ARG_ACTION, ACTION_ALL)
-                .long("hippo-password")
-                .env("HIPPO_PASSWORD")
-                .about("The username for connecting to Hippo")
-        )
-        .arg(
-            clap::Arg::new(ARG_ACTION)
-                .possible_values(&[ACTION_ALL, ACTION_BINDLE, ACTION_PREPARE])
-                .default_value(ACTION_ALL)
-                .required(false)
-                .short('a')
-                .long("action")
-                .about("What action to take with the generated bindle"),
-        )
-        .arg(
-            clap::Arg::new(ARG_INSECURE)
-                .required(false)
-                .takes_value(false)
-                .short('k')
-                .long("insecure")
-                .about("If set, ignore server certificate errors"),
+        .subcommand(
+            App::new("bindle")
+                .about("Creates a bindle and pushes it to the Bindle server, but does not notify Hippo")
+                .args(&bindle_build_args),
         )
         .get_matches();
 
+    match matches.subcommand() {
+        // Make a vague attempt to keep these in alphabetical order
+        Some(("bindle", args)) => bindle(args).await,
+        Some(("prepare", args)) => prepare(args).await,
+        Some(("push", args)) => push(args).await,
+        _ => Err(anyhow::anyhow!("No matching command. Try 'hippo help'")),
+    }
+}
+
+/// Run the prepare command
+///
+/// Args:
+/// - ARG_HIPPOFACTS
+/// - ARG_STAGING_DIR
+/// - ARG_VERSIONING
+/// - ARG_OUTPUT
+/// - ARG_BINDLE_URL
+async fn prepare(args: &ArgMatches) -> anyhow::Result<()> {
+    let source = args
+        .value_of(ARG_HIPPOFACTS)
+        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))
+        .and_then(sourcedir)?;
+
+    let current_dir = std::env::current_dir()?;
+    let destination = args
+        .value_of(ARG_STAGING_DIR)
+        .map(|dir| current_dir.join(dir))
+        .ok_or_else(|| {
+            anyhow::Error::msg("A staging directory is required for 'prepare'. Use -d|--dir.")
+        })?;
+
+    let invoice_versioning = InvoiceVersioning::parse(args.value_of(ARG_VERSIONING).unwrap());
+    let output_format = OutputFormat::parse(args.value_of(ARG_OUTPUT).unwrap());
+
+    // NOTE: Prepare currently does not require a Bindle URL, so this could be NoPush(None)
+    let bindle_settings =
+        BindleSettings::NoPush(args.value_of(ARG_BINDLE_URL).map(|s| s.to_owned()));
+
+    run(
+        &source,
+        &destination,
+        invoice_versioning,
+        output_format,
+        bindle_settings,
+        None, // Prepare never notifies.
+    )
+    .await
+}
+
+/// Run the bindle command
+///
+/// Args:
+/// - ARG_HIPPOFACTS
+/// - ARG_STAGING_DIR
+/// - ARG_VERSIONING
+/// - ARG_OUTPUT
+/// - ARG_BINDLE_URL
+async fn bindle(args: &ArgMatches) -> anyhow::Result<()> {
+    let source = args
+        .value_of(ARG_HIPPOFACTS)
+        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))
+        .and_then(sourcedir)?;
+
+    let destination = match args.value_of(ARG_STAGING_DIR) {
+        Some(dir) => std::env::current_dir()?.join(dir),
+        None => std::env::temp_dir().join("hippo-staging"), // TODO: make unpredictable with tempdir?
+    };
+
+    let invoice_versioning = InvoiceVersioning::parse(args.value_of(ARG_VERSIONING).unwrap());
+    let output_format = OutputFormat::parse(args.value_of(ARG_OUTPUT).unwrap());
+    let bindle_settings = BindleSettings::Push(
+        args.value_of(ARG_BINDLE_URL)
+            .map(|s| s.to_owned())
+            .ok_or_else(|| {
+                anyhow::anyhow!("Bindle URL is required. Use -s|--server or $BINDLE_URL")
+            })?,
+    );
+
+    run(
+        &source,
+        &destination,
+        invoice_versioning,
+        output_format,
+        bindle_settings,
+        None, // `bindle` never notifies.
+    )
+    .await
+}
+
+/// Package a bindle and push it to a Bindle server, notifying Hippo.
+async fn push(args: &ArgMatches) -> anyhow::Result<()> {
     let hippofacts_arg = args
         .value_of(ARG_HIPPOFACTS)
         .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))?;
-    let staging_dir_arg = args.value_of(ARG_STAGING_DIR);
+    let source = sourcedir(hippofacts_arg)?;
+
+    // Local configuration
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
     let output_format_arg = args.value_of(ARG_OUTPUT).unwrap();
+    let destination = match args.value_of(ARG_STAGING_DIR) {
+        Some(dir) => std::env::current_dir()?.join(dir),
+        None => std::env::temp_dir().join("hippo-staging"), // TODO: make unpredictable with tempdir?
+    };
+    let invoice_versioning = InvoiceVersioning::parse(versioning_arg);
+    let output_format = OutputFormat::parse(output_format_arg);
+
+    // Bindle configuration
     let bindle_url = args.value_of(ARG_BINDLE_URL).map(|s| s.to_owned());
-    let bindle_settings = match args.value_of(ARG_ACTION) {
-        None | Some(ACTION_PREPARE) => BindleSettings::NoPush(bindle_url),
-        _ => BindleSettings::Push(bindle_url.ok_or_else(|| anyhow::anyhow!("Bindle URL must be set for this action"))?),
-    };
-    let hippo_url = match args.value_of(ARG_ACTION) {
-        Some(ACTION_ALL) => args.value_of(ARG_HIPPO_URL).map(|s| s.to_owned()),
-        _ => None,
-    };
+    let bindle_settings = BindleSettings::Push(bindle_url.ok_or_else(|| {
+        anyhow::anyhow!("Bindle URL must be set for this action. Use -s|--server or $BINDLE_URL")
+    })?);
+
+    // Hippo configuration
+    let hippo_url = args.value_of(ARG_HIPPO_URL).map(|s| s.to_owned());
     let hippo_username = args.value_of(ARG_HIPPO_USERNAME);
     let hippo_password = args.value_of(ARG_HIPPO_PASSWORD);
 
+    // Notification configuration
     let notify_to = hippo_url.map(|url| hippo_notifier::ConnectionInfo {
         url,
         danger_accept_invalid_certs: args.is_present(ARG_INSECURE),
         username: hippo_username.unwrap().to_owned(), // Known to be set if the URL is
         password: hippo_password.unwrap().to_owned(),
     });
-
-    let source_file_or_dir = std::env::current_dir()?.join(hippofacts_arg);
-    let source = if source_file_or_dir.is_file() {
-        source_file_or_dir
-    } else {
-        source_file_or_dir.join("HIPPOFACTS")
-    };
-    if !source.exists() {
-        return Err(anyhow::anyhow!(
-            "Artifacts spec not found: file {} does not exist",
-            source.to_string_lossy()
-        ));
-    }
-
-    let destination = match staging_dir_arg {
-        Some(dir) => std::env::current_dir()?.join(dir),
-        None => std::env::temp_dir().join("hippo-staging"), // TODO: make unpredictable?
-    };
-    let invoice_versioning = InvoiceVersioning::parse(versioning_arg);
-    let output_format = OutputFormat::parse(output_format_arg);
 
     run(
         &source,
@@ -168,6 +254,8 @@ async fn main() -> anyhow::Result<()> {
     .await
 }
 
+/// Run a command to package and push an app, and then notify if necessary.
+/// This is used for prepare, bindle, and push commands
 async fn run(
     source: impl AsRef<std::path::Path>,
     destination: impl AsRef<std::path::Path>,
@@ -210,8 +298,7 @@ async fn run(
         OutputFormat::None => (),
         OutputFormat::Id => println!("{}", &invoice.bindle.id),
         OutputFormat::Message => match &bindle_settings {
-            BindleSettings::Push(_) =>
-                println!("pushed: {}", &invoice.bindle.id),
+            BindleSettings::Push(_) => println!("pushed: {}", &invoice.bindle.id),
             BindleSettings::NoPush(_) => {
                 println!("id:      {}", &invoice.bindle.id);
                 println!(
@@ -219,13 +306,14 @@ async fn run(
                     dunce::canonicalize(&destination)?.to_string_lossy(),
                     &invoice.bindle.id
                 );
-            },
-        }
+            }
+        },
     }
 
     Ok(())
 }
 
+/// Pre-fetch any invoices that are referenced in the HIPPOFACTS.
 async fn prefetch_required_invoices(
     hippofacts: &HippoFacts,
     bindle_url: Option<String>,
@@ -254,10 +342,30 @@ async fn prefetch_required_invoices(
     Ok(map)
 }
 
+/// Calculate the external Bindle ID from hippofacts data.
 fn external_bindle_id(entry: &HippoFactsEntry) -> Option<bindle::Id> {
-    entry.external_ref().map(|ext| ext.bindle_id.clone())
+    entry.external_ref().map(|ext| ext.bindle_id)
 }
 
+/// Find the source directory
+fn sourcedir(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
+    let source_file_or_dir = std::env::current_dir()?.join(hippofacts_arg);
+    let source = if source_file_or_dir.is_file() {
+        source_file_or_dir
+    } else {
+        source_file_or_dir.join("HIPPOFACTS")
+    };
+
+    if !source.exists() {
+        return Err(anyhow::anyhow!(
+            "Artifacts spec not found: file {} does not exist",
+            source.to_string_lossy()
+        ));
+    }
+    Ok(source)
+}
+
+/// Describe the desired output format.
 enum OutputFormat {
     None,
     Id,
@@ -265,6 +373,7 @@ enum OutputFormat {
 }
 
 impl OutputFormat {
+    /// Parse a format from a string.
     pub fn parse(text: &str) -> Self {
         if text == "none" {
             OutputFormat::None
@@ -276,12 +385,16 @@ impl OutputFormat {
     }
 }
 
+/// Desribe the actions to be taken viz a viz a Bindle server.
 enum BindleSettings {
+    /// Do not push to a Bindle server, but still resolve local references.
     NoPush(Option<String>),
+    /// Push to a Bindle server, resolving references if necessary.
     Push(String),
 }
 
 impl BindleSettings {
+    /// Get the Bindle server URL if it was set.
     pub fn bindle_url(&self) -> Option<String> {
         match self {
             Self::NoPush(opt) => opt.clone(),

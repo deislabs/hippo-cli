@@ -134,8 +134,13 @@ impl TryFrom<&RawHandler> for HippoFactsEntry {
     fn try_from(raw: &RawHandler) -> anyhow::Result<Self> {
         let handler_module = match (&raw.name, &raw.external) {
             (Some(name), None) => Ok(HandlerModule::File(name.clone())),
-            (None, Some(external_ref)) => Ok(HandlerModule::External(ExternalRef::try_from(external_ref)?)),
-            _ => Err(anyhow::anyhow!("Route '{}' must specify exactly one of 'name' and 'external'", raw.route)),
+            (None, Some(external_ref)) => Ok(HandlerModule::External(ExternalRef::try_from(
+                external_ref,
+            )?)),
+            _ => Err(anyhow::anyhow!(
+                "Route '{}' must specify exactly one of 'name' and 'external'",
+                raw.route
+            )),
         }?;
         let entry = match handler_module {
             HandlerModule::File(name) => Self::LocalHandler(LocalHandler {
@@ -202,7 +207,7 @@ fn no_handlers() -> anyhow::Error {
 #[cfg(test)]
 mod test {
     use super::*;
-    
+
     impl HippoFactsEntry {
         pub fn name(&self) -> Option<String> {
             match self {
@@ -211,7 +216,7 @@ mod test {
                 Self::Export(e) => Some(e.name.clone()),
             }
         }
-    
+
         pub fn route(&self) -> Option<String> {
             match self {
                 Self::LocalHandler(h) => Some(h.route.clone()),
@@ -219,7 +224,7 @@ mod test {
                 Self::Export(_) => None,
             }
         }
-    
+
         pub fn export_id(&self) -> Option<String> {
             match self {
                 Self::LocalHandler(_) => None,
@@ -228,7 +233,7 @@ mod test {
             }
         }
     }
-    
+
     #[test]
     fn test_can_read_hippo_facts() {
         let raw: RawHippoFacts = toml::from_str(

@@ -505,7 +505,7 @@ fn map_of(values: Vec<(&str, &str)>) -> BTreeMap<String, String> {
 
 fn annotation_do_not_stage_file() -> Option<AnnotationMap> {
     let mut annotations = AnnotationMap::new();
-    annotations.insert("hippofactory_do_not_stage".to_owned(), "true".to_owned());
+    annotations.insert("hippos_do_not_stage".to_owned(), "true".to_owned());
     Some(annotations)
 }
 

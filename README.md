@@ -1,8 +1,8 @@
-# hippofactory
+# Hippo Client
 
-`hippofactory` is an **experimental** client for [Bindle](https://github.com/deislabs/bindle).
+`hippo` is an **experimental** client for the [Hippo PaaS](https://github.com/deislabs/hippo) and [Bindle](https://github.com/deislabs/bindle).
 
-The `hippofactory` tool processes an application's `HIPPOFACTS` (Hippo
+The `hippo` tool processes an application's `HIPPOFACTS` (Hippo
 artifacts) file and generates a bindle that it can either push directly
 or can later be uploaded using `bindle push`.
 
@@ -184,7 +184,7 @@ name = 'bin/cassowary.wasm-files'
 name = 'bin/kea.wasm-files'
 ```
 
-`hippofactory` does not currently support Bindle's `parcel.label.feature`
+`hippo` does not currently support Bindle's `parcel.label.feature`
 or `signature` features.  It does not yet support push options other than the server URL (e.g. auth).
 
 ### External handlers
@@ -209,7 +209,7 @@ route = "/images"
 files = ["birds/*.jpg"]
 ```
 
-Hippofactory will locate the specified `wagi_handler_id` in the given bindle, and create a
+The Hippo client will locate the specified `wagi_handler_id` in the given bindle, and create a
 parcel in your invoice that points to the same blob but with a `requires` condition for
 the handler group. It also creates parcels for any parcels that the handler `requires`
 in its original bindle.
@@ -232,10 +232,10 @@ files = ["cache/*.db"]
 there will be no application mapped to the resultant bindle. Pass `-a bindle` to
 push to the Bindle server but not register it with Hippo.
 
-## Running hippofactory
+## Running the Hippo Client
 
-As a developer you can run `hippofactory .` in your `HIPPOFACTS` directory to assemble all matching
-files and publish them as a bindle. In this mode, `hippofactory`:
+As a developer you can run `hippo .` in your `HIPPOFACTS` directory to assemble all matching
+files and publish them as a bindle. In this mode, `hippo`:
 
 * Mangles the version with a prerelease segment
 * Stages to a temporary directory

@@ -1,5 +1,5 @@
 [package]
-name = "hippofactory"
+name = "hippo"
 version = "0.5.0"
 authors = ["Ivan Towlson <itowlson@microsoft.com>"]
 edition = "2018"

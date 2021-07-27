@@ -9,9 +9,12 @@ use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::{HippoFacts, HippoFactsEntry};
 use itertools::Itertools;
 
+use crate::build_condition::BuildConditionValues;
+
 mod bindle_pusher;
 mod bindle_utils;
 mod bindle_writer;
+mod build_condition;
 mod expander;
 mod hippo_notifier;
 mod hippofacts;
@@ -183,6 +186,7 @@ async fn prepare(args: &ArgMatches) -> anyhow::Result<()> {
         })?;
 
     let invoice_versioning = InvoiceVersioning::parse(args.value_of(ARG_VERSIONING).unwrap());
+    let build_condition_values = parse_build_condition_values(args)?;
     let output_format = OutputFormat::parse(args.value_of(ARG_OUTPUT).unwrap());
 
     // NOTE: Prepare currently does not require a Bindle URL, so this could be NoPush(None)
@@ -191,6 +195,7 @@ async fn prepare(args: &ArgMatches) -> anyhow::Result<()> {
     run(
         &source,
         &destination,
+        &build_condition_values,
         invoice_versioning,
         output_format,
         bindle_settings,
@@ -216,6 +221,7 @@ async fn bindle(args: &ArgMatches) -> anyhow::Result<()> {
     };
 
     let invoice_versioning = InvoiceVersioning::parse(args.value_of(ARG_VERSIONING).unwrap());
+    let build_condition_values = parse_build_condition_values(args)?;
     let output_format = OutputFormat::parse(args.value_of(ARG_OUTPUT).unwrap());
     let bindle_settings = BindleSettings::Push(
         BindleConnectionInfo::from_args(args).ok_or_else(bindle_url_is_required)?,
@@ -224,6 +230,7 @@ async fn bindle(args: &ArgMatches) -> anyhow::Result<()> {
     run(
         &source,
         &destination,
+        &build_condition_values,
         invoice_versioning,
         output_format,
         bindle_settings,
@@ -244,6 +251,7 @@ async fn push(args: &ArgMatches) -> anyhow::Result<()> {
         None => std::env::temp_dir().join("hippo-staging"), // TODO: make unpredictable with tempdir?
     };
     let invoice_versioning = InvoiceVersioning::parse(versioning_arg);
+    let build_condition_values = parse_build_condition_values(args)?;
     let output_format = OutputFormat::parse(output_format_arg);
 
     // Bindle configuration
@@ -270,6 +278,7 @@ async fn push(args: &ArgMatches) -> anyhow::Result<()> {
     run(
         &source,
         &destination,
+        &build_condition_values,
         invoice_versioning,
         output_format,
         bindle_settings,
@@ -283,6 +292,7 @@ async fn push(args: &ArgMatches) -> anyhow::Result<()> {
 async fn run(
     source: impl AsRef<std::path::Path>,
     destination: impl AsRef<std::path::Path>,
+    build_condition_values: &BuildConditionValues,
     invoice_versioning: InvoiceVersioning,
     output_format: OutputFormat,
     bindle_settings: BindleSettings,
@@ -297,12 +307,13 @@ async fn run(
         .to_path_buf();
 
     // Do this outside the `expand` function so `expand` is more testable
-    let external_invoices = prefetch_required_invoices(&spec, bindle_settings.connection_info()).await?;
+    let external_invoices = prefetch_required_invoices(&spec, build_condition_values, bindle_settings.connection_info()).await?;
 
     let expansion_context = ExpansionContext {
         relative_to: source_dir.clone(),
         invoice_versioning,
         external_invoices,
+        build_condition_values: BuildConditionValues::none(),
     };
 
     let (invoice, warnings) = expander::expand(&spec, &expansion_context)?.into();
@@ -344,13 +355,14 @@ async fn run(
 /// Pre-fetch any invoices that are referenced in the HIPPOFACTS.
 async fn prefetch_required_invoices(
     hippofacts: &HippoFacts,
+    build_condition_values: &BuildConditionValues,
     bindle_client_factory: Option<&BindleConnectionInfo>,
 ) -> anyhow::Result<HashMap<bindle::Id, bindle::Invoice>> {
     let mut map = HashMap::new();
 
     let external_refs: Vec<bindle::Id> = hippofacts
-        .entries
-        .iter()
+        .entries_for(build_condition_values)
+        .into_iter()
         .flat_map(external_bindle_id)
         .collect();
     if external_refs.is_empty() {
@@ -420,6 +432,10 @@ fn find_hippofacts_file_in(source_dir: &PathBuf) -> anyhow::Result<PathBuf> {
 
 fn bindle_url_is_required() -> anyhow::Error {
     anyhow::anyhow!("Bindle URL is required. Use -s|--server or $BINDLE_URL")
+}
+
+fn parse_build_condition_values(_args: &ArgMatches) -> anyhow::Result<BuildConditionValues> {
+    Ok(BuildConditionValues::none())
 }
 
 /// Describe the desired output format.

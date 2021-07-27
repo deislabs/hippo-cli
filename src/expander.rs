@@ -9,6 +9,7 @@ use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
 use crate::bindle_utils::InvoiceHelpers;
+use crate::build_condition::BuildConditionValues;
 use crate::hippofacts::{ExternalRef, HippoFacts, HippoFactsEntry};
 use crate::warnings::{Unwarn, WarnContext, Warned};
 
@@ -16,6 +17,7 @@ pub struct ExpansionContext {
     pub relative_to: PathBuf,
     pub invoice_versioning: InvoiceVersioning,
     pub external_invoices: HashMap<bindle::Id, Invoice>,
+    pub build_condition_values: BuildConditionValues,
 }
 
 impl ExpansionContext {
@@ -70,7 +72,7 @@ pub fn expand(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Warned<Invoice>> {
     WarnContext::run(|wc| {
-        let groups = expand_all_entries_to_groups(&hippofacts)?;
+        let groups = expand_all_entries_to_groups(&hippofacts, expansion_context)?;
         let handler_parcels = expand_module_entries_to_parcels(&hippofacts, expansion_context)?;
         let external_dependent_parcels =
             expand_all_external_ref_dependencies_to_parcels(&hippofacts, expansion_context)?;
@@ -81,7 +83,7 @@ pub fn expand(
             .chain(external_dependent_parcels)
             .chain(file_parcels)
             .collect();
-
+    
         let invoice = Invoice {
             bindle_version: "1.0.0".to_owned(),
             yanked: None,
@@ -96,7 +98,7 @@ pub fn expand(
             group: Some(groups),
             signature: None,
         };
-
+    
         Ok(invoice)
     })
 }
@@ -111,8 +113,8 @@ fn expand_id(
     Ok(id)
 }
 
-fn expand_all_entries_to_groups(hippofacts: &HippoFacts) -> anyhow::Result<Vec<Group>> {
-    let groups = hippofacts.entries.iter().map(expand_to_group).collect();
+fn expand_all_entries_to_groups(hippofacts: &HippoFacts, expansion_context: &ExpansionContext) -> anyhow::Result<Vec<Group>> {
+    let groups = hippofacts.entries_for(&expansion_context.build_condition_values).into_iter().map(expand_to_group).collect();
     Ok(groups)
 }
 
@@ -140,8 +142,8 @@ fn expand_module_entries_to_parcels(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
     let parcels = hippofacts
-        .entries
-        .iter()
+        .entries_for(&expansion_context.build_condition_values)
+        .into_iter()
         .map(|handler| expand_one_module_entry_to_parcel(handler, expansion_context));
     parcels.collect()
 }
@@ -181,7 +183,7 @@ fn expand_all_external_ref_dependencies_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let parcel_lists = hippofacts.entries.iter().map(|handler| match &handler {
+    let parcel_lists = hippofacts.entries_for(&expansion_context.build_condition_values).into_iter().map(|handler| match &handler {
         HippoFactsEntry::ExternalHandler(e) => expand_one_external_ref_dependencies_to_parcels(
             &e.external,
             expansion_context,
@@ -234,8 +236,8 @@ fn expand_all_files_to_parcels(
 ) -> anyhow::Result<Warned<Vec<Parcel>>> {
     WarnContext::run(|wc| {
         let parcel_lists = hippofacts
-            .entries
-            .iter()
+            .entries_for(&expansion_context.build_condition_values)
+            .into_iter()
             .map(|handler| expand_files_to_parcels(handler, expansion_context).unwarn(wc));
         let parcels = flatten_or_fail(parcel_lists)?;
         Ok(merge_memberships(parcels))
@@ -596,6 +598,7 @@ mod test {
             relative_to: dir,
             invoice_versioning: InvoiceVersioning::Production,
             external_invoices: external_test_invoices(),
+            build_condition_values: BuildConditionValues::none(),
         };
         let (invoice, _) = expand(&hippofacts, &expansion_context)?.into();
         Ok(invoice)

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, convert::TryFrom};
 
+use crate::build_condition::{BuildConditionExpression, BuildConditionValues};
+
 // type FeatureMap = BTreeMap<String, BTreeMap<String, String>>;
 
 type AnnotationMap = BTreeMap<String, String>;
@@ -50,16 +52,18 @@ struct RawExternalRef {
 pub struct HippoFacts {
     pub bindle: BindleSpec,
     pub annotations: Option<AnnotationMap>,
-    pub entries: Vec<HippoFactsEntry>,
+    entries: Vec<HippoFactsEntry>,
 }
 
 pub struct LocalHandler {
+    pub condition: BuildConditionExpression,
     pub name: String,
     pub route: String,
     pub files: Option<Vec<String>>,
 }
 
 pub struct ExternalHandler {
+    pub condition: BuildConditionExpression,
     pub external: ExternalRef,
     pub route: String,
     pub files: Option<Vec<String>>,
@@ -77,6 +81,7 @@ pub struct ExternalRef {
 }
 
 pub struct Export {
+    pub condition: BuildConditionExpression,
     pub name: String,
     pub id: String,
     pub files: Vec<String>,
@@ -103,6 +108,10 @@ impl HippoFacts {
                 e
             )
         })
+    }
+
+    pub fn entries_for(&self, build_condition_values: &BuildConditionValues) -> Vec<&HippoFactsEntry> {
+        self.entries.iter().filter(|e| e.should_build_under(build_condition_values)).collect()
     }
 }
 
@@ -144,11 +153,13 @@ impl TryFrom<&RawHandler> for HippoFactsEntry {
         }?;
         let entry = match handler_module {
             HandlerModule::File(name) => Self::LocalHandler(LocalHandler {
+                condition: BuildConditionExpression::None,
                 name,
                 route: raw.route.clone(),
                 files: raw.files.clone(),
             }),
             HandlerModule::External(external) => Self::ExternalHandler(ExternalHandler {
+                condition: BuildConditionExpression::None,
                 external,
                 route: raw.route.clone(),
                 files: raw.files.clone(),
@@ -175,6 +186,7 @@ impl TryFrom<&RawExport> for HippoFactsEntry {
 
     fn try_from(raw: &RawExport) -> anyhow::Result<Self> {
         Ok(Self::Export(Export {
+            condition: BuildConditionExpression::None,
             id: raw.id.clone(),
             name: raw.name.clone(),
             files: raw.files.clone().unwrap_or_default(),
@@ -196,6 +208,18 @@ impl HippoFactsEntry {
             Self::LocalHandler(_) => None,
             Self::ExternalHandler(h) => Some(h.external.clone()),
             Self::Export(_) => None,
+        }
+    }
+
+    pub fn should_build_under(&self, build_condition_values: &BuildConditionValues) -> bool {
+        self.build_condition().should_build(build_condition_values)
+    }
+
+    fn build_condition(&self) -> &BuildConditionExpression {
+        match self {
+            Self::LocalHandler(h) => &h.condition,
+            Self::ExternalHandler(h) => &h.condition,
+            Self::Export(e) => &e.condition,
         }
     }
 }

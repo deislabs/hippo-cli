@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
-bindle = { version = "0.3.1", default-features = false, features = ["client"] }
+bindle = { version = "0.4.1", default-features = false, features = ["client"] }
 chrono = "0.4"
 clap = { version = "3.0.0-beta.2" }
 dunce = "1.0"

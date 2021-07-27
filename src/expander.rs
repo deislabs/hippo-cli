@@ -83,6 +83,7 @@ pub fn expand(
     let invoice = Invoice {
         bindle_version: "1.0.0".to_owned(),
         yanked: None,
+        yanked_signature: None,
         bindle: BindleSpec {
             id: expand_id(&hippofacts.bindle, expansion_context)?,
             description: hippofacts.bindle.description.clone(),
@@ -315,6 +316,7 @@ fn convert_one_match_to_parcel(
                 size,
                 feature,
                 annotations,
+                origin: None,
             },
             conditions: Some(Condition {
                 member_of: vector_of(member_of),
@@ -359,6 +361,7 @@ fn convert_one_ref_to_parcel(
                 size: parcel.label.size,
                 annotations: annotation_do_not_stage_file(),
                 feature,
+                origin: None,
             },
             conditions: Some(Condition {
                 member_of: vector_of(member_of),
@@ -595,6 +598,7 @@ mod test {
                     sha256: "987654".to_owned(),
                     media_type: "application/wasm".to_owned(),
                     size: 123,
+                    origin: None,
                     annotations: None,
                     feature: None,
                 },
@@ -606,6 +610,7 @@ mod test {
                     sha256: "123456789".to_owned(),
                     media_type: "application/wasm".to_owned(),
                     size: 100,
+                    origin: None,
                     annotations: Some(
                         vec![("wagi_handler_id".to_owned(), "static".to_owned())]
                             .into_iter()
@@ -621,6 +626,7 @@ mod test {
                     sha256: "13463".to_owned(),
                     media_type: "application/wasm".to_owned(),
                     size: 234,
+                    origin: None,
                     annotations: Some(
                         vec![("wagi_handler_id".to_owned(), "image_gallery".to_owned())]
                             .into_iter()
@@ -639,6 +645,7 @@ mod test {
                     sha256: "134632".to_owned(),
                     media_type: "application/octet-stream".to_owned(),
                     size: 345,
+                    origin: None,
                     annotations: None,
                     feature: None,
                 },
@@ -653,6 +660,7 @@ mod test {
                     sha256: "444444".to_owned(),
                     media_type: "application/octet-stream".to_owned(),
                     size: 456,
+                    origin: None,
                     annotations: None,
                     feature: None,
                 },
@@ -667,6 +675,7 @@ mod test {
                     sha256: "555555".to_owned(),
                     media_type: "text/plain".to_owned(),
                     size: 456,
+                    origin: None,
                     annotations: None,
                     feature: None,
                 },
@@ -681,6 +690,7 @@ mod test {
                     sha256: "3948759834765".to_owned(),
                     media_type: "text/plain".to_owned(),
                     size: 456,
+                    origin: None,
                     annotations: None,
                     feature: None,
                 },
@@ -693,6 +703,7 @@ mod test {
         let fs_invoice = Invoice {
             bindle_version: "1.0.0".to_owned(),
             yanked: None,
+            yanked_signature: None,
             bindle: bindle::BindleSpec {
                 id: fs_id.clone(),
                 description: None,

@@ -1,4 +1,11 @@
 use std::{collections::HashMap, iter::FromIterator};
+use nom::{IResult, Parser};
+use nom::branch::alt;
+use nom::bytes::complete::{is_not, tag};
+use nom::character::complete::{alpha1, alphanumeric1, char};
+use nom::combinator::{map, recognize};
+use nom::multi::many0;
+use nom::sequence::{delimited, pair, preceded, tuple};
 
 pub struct BuildConditionValues {
     values: HashMap<String, String>,
@@ -41,18 +48,34 @@ impl BuildConditionValues {
 //     }
 // }
 
+#[derive(Debug, PartialEq)]
 pub enum BuildConditionExpression {
     None,
     Equal(BuildConditionTerm, BuildConditionTerm),
     Unequal(BuildConditionTerm, BuildConditionTerm),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum BuildConditionTerm {
     Literal(String),
     ValueRef(String),
 }
 
 impl BuildConditionExpression {
+    pub fn parse(source: &Option<String>) -> anyhow::Result<Self> {
+        match source {
+            None => Ok(BuildConditionExpression::None),
+            Some(rule_text) => Self::parse_rule(rule_text),
+        }
+    }
+
+    fn parse_rule(rule_text: &str) -> anyhow::Result<Self> {
+        match build_cond_expr(rule_text) {
+            Ok((_, m)) => Ok(m),
+            Err(e) => Err(anyhow::anyhow!("parse error {}", e)),
+        }
+    }
+
     pub fn should_build(&self, values: &BuildConditionValues) -> bool {
         match self {
             Self::None => true,
@@ -72,6 +95,57 @@ impl BuildConditionTerm {
         }
     }
 }
+
+fn identifier(input: &str) -> IResult<&str, &str> {
+    let (rest, m) = recognize(pair(
+        alpha1,
+        many0(alt((alphanumeric1, tag("_"))))
+    ))(input)?;
+    Ok((rest, m))
+}
+
+fn literal(input: &str) -> IResult<&str, BuildConditionTerm> {
+    let mut literal_parser = delimited(
+        char('\''),
+        many0(alt((alphanumeric1, tag("_"), tag("-")))),
+        char('\'')
+    );
+    let (rest, m) = literal_parser.parse(input)?;
+    Ok((rest, BuildConditionTerm::Literal(m.join(""))))
+}
+
+fn term(input: &str) -> IResult<&str, BuildConditionTerm> {
+    let value_ref = map(
+        preceded(tag("$"), identifier),
+        |m| BuildConditionTerm::ValueRef(m.to_owned())
+    );
+    let mut term_parser = alt((value_ref, literal));
+    let (rest, m) = term_parser.parse(input)?;
+    Ok((rest, m))
+}
+
+fn eq_op(input: &str) -> IResult<&str, EqOp> {
+    let (rest, m) = recognize(alt((
+        tag("=="),
+        tag("!=")
+    )))(input)?;
+    Ok((rest, if m == "==" { EqOp::Equals } else { EqOp::DoesNotEqual }))
+}
+
+fn build_cond_expr(input: &str) -> IResult<&str, BuildConditionExpression> {
+    // TODO: this is horrible
+    let ws1 = many0(char(' '));
+    let ws2 = many0(char(' '));
+    let mut predicate = tuple((term, ws1, eq_op, ws2, term));
+    let (rest, (left, _, op, _, right)) = predicate.parse(input)?;
+    let expr = match op {
+        EqOp::Equals => BuildConditionExpression::Equal(left, right),
+        EqOp::DoesNotEqual => BuildConditionExpression::Unequal(left, right),
+    };
+    Ok((rest, expr))
+}
+
+enum EqOp { Equals, DoesNotEqual }
 
 #[cfg(test)]
 mod test {
@@ -118,5 +192,34 @@ mod test {
         assert_eq!(true, expr.should_build(&BuildConditionValues::none()));
         assert_eq!(false, expr.should_build(&BuildConditionValues::from(build_kind("release"))));
         assert_eq!(true, expr.should_build(&BuildConditionValues::from(build_kind("debug"))));
+    }
+
+    #[test]
+    fn test_parsing_none_gives_expression_none() {
+        assert_eq!(BuildConditionExpression::None, BuildConditionExpression::parse(&None).unwrap());
+    }
+
+    #[test]
+    fn test_can_parse_equality_expressions() {
+        let rule_text = Some("$build_kind == 'release'".to_owned());
+
+        let expr = BuildConditionExpression::Equal(
+            BuildConditionTerm::ValueRef("build_kind".to_owned()),
+            BuildConditionTerm::Literal("release".to_owned())
+        );
+
+        assert_eq!(expr, BuildConditionExpression::parse(&rule_text).unwrap());
+    }
+
+    #[test]
+    fn test_can_parse_inequality_expressions() {
+        let rule_text = Some("$build_kind != 'release'".to_owned());
+
+        let expr = BuildConditionExpression::Unequal(
+            BuildConditionTerm::ValueRef("build_kind".to_owned()),
+            BuildConditionTerm::Literal("release".to_owned())
+        );
+
+        assert_eq!(expr, BuildConditionExpression::parse(&rule_text).unwrap());
     }
 }

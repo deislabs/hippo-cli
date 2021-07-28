@@ -240,17 +240,17 @@ async fn push(args: &ArgMatches) -> anyhow::Result<()> {
     let hippo_url = args
         .value_of(ARG_HIPPO_URL)
         .map(|s| s.to_owned())
-        .ok_or_else(|| anyhow::anyhow!("A Hippo url is requred. Use --hippo-url or $HIPPO_URL"));
+        .ok_or_else(|| anyhow::anyhow!("A Hippo url is required. Use --hippo-url or $HIPPO_URL"))?;
     let hippo_username = args.value_of(ARG_HIPPO_USERNAME);
     let hippo_password = args.value_of(ARG_HIPPO_PASSWORD);
 
     // Notification configuration
-    let notify_to = Some(hippo_url.map(|url| hippo_notifier::ConnectionInfo {
-        url,
+    let notify_to = Some(hippo_notifier::ConnectionInfo {
+        url: hippo_url,
         danger_accept_invalid_certs: args.is_present(ARG_INSECURE),
         username: hippo_username.unwrap().to_owned(), // Known to be set if the URL is
         password: hippo_password.unwrap().to_owned(),
-    })?);
+    });
 
     run(
         &source,

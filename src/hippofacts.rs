@@ -28,6 +28,7 @@ pub struct BindleSpec {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RawHandler {
+    pub condition: Option<String>,
     pub name: Option<String>,
     pub external: Option<RawExternalRef>,
     pub route: String,
@@ -37,6 +38,7 @@ struct RawHandler {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RawExport {
+    pub condition: Option<String>,
     pub name: String,
     pub id: String,
     pub files: Option<Vec<String>>,
@@ -151,15 +153,16 @@ impl TryFrom<&RawHandler> for HippoFactsEntry {
                 raw.route
             )),
         }?;
+        let condition = BuildConditionExpression::parse(&raw.condition)?;
         let entry = match handler_module {
             HandlerModule::File(name) => Self::LocalHandler(LocalHandler {
-                condition: BuildConditionExpression::None,
+                condition,
                 name,
                 route: raw.route.clone(),
                 files: raw.files.clone(),
             }),
             HandlerModule::External(external) => Self::ExternalHandler(ExternalHandler {
-                condition: BuildConditionExpression::None,
+                condition,
                 external,
                 route: raw.route.clone(),
                 files: raw.files.clone(),
@@ -185,8 +188,9 @@ impl TryFrom<&RawExport> for HippoFactsEntry {
     type Error = anyhow::Error;
 
     fn try_from(raw: &RawExport) -> anyhow::Result<Self> {
+        let condition = BuildConditionExpression::parse(&raw.condition)?;
         Ok(Self::Export(Export {
-            condition: BuildConditionExpression::None,
+            condition,
             id: raw.id.clone(),
             name: raw.name.clone(),
             files: raw.files.clone().unwrap_or_default(),
@@ -230,6 +234,8 @@ fn no_handlers() -> anyhow::Error {
 
 #[cfg(test)]
 mod test {
+    use crate::build_condition::BuildConditionTerm;
+
     use super::*;
 
     impl HippoFactsEntry {
@@ -349,5 +355,44 @@ mod test {
                 e
             );
         }
+    }
+
+    #[test]
+    fn test_parse_conditions() {
+        let raw: RawHippoFacts = toml::from_str(
+            r#"
+        # HIPPO FACT: It is not known who would win in a fight between a hippo and a moa
+        [bindle]
+        name = "birds"
+        version = "1.2.4"
+
+        [[handler]]
+        name = "penguin.wasm"
+        route = "/birds/flightless"
+
+        [[handler]]
+        condition = "$country == 'Australia'"
+        external.bindleId = "cassowary/1.2.3"
+        external.handlerId = "beak"
+        route = "/birds/savage/rending"
+
+        [[export]]
+        condition = "$country != 'Australia'"
+        id = "big_honking_bird"
+        name = "moa.wasm"
+        "#,
+        )
+        .expect("error parsing test TOML");
+        let facts = HippoFacts::try_from(&raw).expect("error parsing raw to HF");
+
+        assert_eq!(&BuildConditionExpression::None, facts.entries[0].build_condition());
+        assert_eq!(&BuildConditionExpression::Equal(
+            BuildConditionTerm::ValueRef("country".to_owned()),
+            BuildConditionTerm::Literal("Australia".to_owned())
+        ), facts.entries[1].build_condition());
+        assert_eq!(&BuildConditionExpression::Unequal(
+            BuildConditionTerm::ValueRef("country".to_owned()),
+            BuildConditionTerm::Literal("Australia".to_owned())
+        ), facts.entries[2].build_condition());
     }
 }

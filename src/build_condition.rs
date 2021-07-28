@@ -1,7 +1,7 @@
 use std::{collections::HashMap, iter::FromIterator};
 use nom::{IResult, Parser};
 use nom::branch::alt;
-use nom::bytes::complete::{is_not, tag};
+use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric1, char};
 use nom::combinator::{map, recognize};
 use nom::multi::many0;

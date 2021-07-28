@@ -1,0 +1,30 @@
+[bindle]
+name = "birdbattle"
+version = "1.0.0"
+
+[[handler]]
+condition = "$build_mode != 'release'"
+name = "out/debug/fie.wasm"
+route = "/penguin"
+
+[[handler]]
+condition = "$build_mode == 'release'"
+name = "out/release/fie.wasm"
+route = "/penguin"
+
+[[handler]]
+condition = "$fancy_schmancy == 'true'"
+external.bindleId = "deislabs/fileserver/1.0.3"
+external.handlerId = "static"
+route = "/images"
+files = ["styles/*.css"]
+
+[[export]]
+condition = "$build_mode != 'release'"
+name = "out/debug/lib.wasm"
+id = "bird_provider"
+
+[[export]]
+condition = "$build_mode == 'release'"
+name = "out/release/lib.wasm"
+id = "bird_provider"

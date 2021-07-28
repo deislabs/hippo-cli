@@ -592,13 +592,17 @@ mod test {
     }
 
     fn expand_test_invoice(name: &str) -> anyhow::Result<Invoice> {
+        expand_test_invoice_cond(name, BuildConditionValues::none())
+    }
+
+    fn expand_test_invoice_cond(name: &str, build_condition_values: BuildConditionValues) -> anyhow::Result<Invoice> {
         let dir = test_dir(name);
         let hippofacts = read_hippofacts(dir.join("HIPPOFACTS")).unwrap();
         let expansion_context = ExpansionContext {
             relative_to: dir,
             invoice_versioning: InvoiceVersioning::Production,
             external_invoices: external_test_invoices(),
-            build_condition_values: BuildConditionValues::none(),
+            build_condition_values,
         };
         let (invoice, _) = expand(&hippofacts, &expansion_context)?.into();
         Ok(invoice)
@@ -975,5 +979,51 @@ mod test {
             "wasm/gallery.wasm-image_gallery-files",
             parcel_memberships(&invoice, "gallery/thumbnails.db")[0]
         );
+    }
+
+    #[test]
+    fn test_conditional_entries_no_conditions() {
+        let invoice = expand_test_invoice_cond("cond1", BuildConditionValues::none()).unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+
+        assert_eq!(2, parcels.len());
+        assert_eq!("out/debug/fie.wasm", parcels[0].label.name);
+        assert_eq!("out/debug/lib.wasm", parcels[1].label.name);
+    }
+
+    #[test]
+    fn test_conditional_entries_with_some_conditions_satisfied() {
+        let build_conditions = vec![
+            ("build_mode".to_owned(), "release".to_owned())
+        ].into_iter();
+
+        let build_condition_values = BuildConditionValues::from(build_conditions);
+        let invoice = expand_test_invoice_cond("cond1", build_condition_values).unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+
+        assert_eq!(2, parcels.len());
+        assert_eq!("out/release/fie.wasm", parcels[0].label.name);
+        assert_eq!("out/release/lib.wasm", parcels[1].label.name);
+    }
+
+    #[test]
+    fn test_conditional_entries_with_all_conditions_satisfied() {
+        let build_conditions = vec![
+            ("build_mode".to_owned(), "release".to_owned()),
+            ("fancy_schmancy".to_owned(), "true".to_owned()),
+        ].into_iter();
+
+        let build_condition_values = BuildConditionValues::from(build_conditions);
+        let invoice = expand_test_invoice_cond("cond1", build_condition_values).unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+
+        assert_eq!(4, parcels.len());
+        assert_eq!("out/release/fie.wasm", parcels[0].label.name);
+        assert_eq!("file_server.gr.wasm", parcels[1].label.name);
+        assert_eq!("out/release/lib.wasm", parcels[2].label.name);
+        assert_eq!("styles/whizz.css", parcels[3].label.name);
+
+        let files = parcel_requirements(&invoice, "file_server.gr.wasm");
+        assert_eq!(1, files.len());
     }
 }

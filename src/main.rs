@@ -13,6 +13,19 @@ mod expander;
 mod hippo_notifier;
 mod hippofacts;
 
+/// Indicate which flags are required for bindle builds
+#[allow(dead_code)]
+enum BindleBuildRequirements {
+    /// A Bindle server URL is required
+    RequireBindleServer,
+    /// An explicit stage directory is required
+    RequireStageDirectory,
+    /// Both the Bindle server and the stage directory are required
+    RequireBindleServerAndStageDirectory,
+    /// There are no required arguments for the bindle builds
+    NoRequirements,
+}
+
 const ARG_HIPPOFACTS: &str = "hippofacts_path";
 const ARG_STAGING_DIR: &str = "output_dir";
 const ARG_OUTPUT: &str = "output_format";
@@ -43,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
         .subcommand(
             App::new("push")
                 .about("Packages and uploads Hippo artifacts, notifying Hippo")
-                .args(bindle_build_args(true, false))
+                .args(bindle_build_args(BindleBuildRequirements::RequireBindleServer))
                 .arg(
                     Arg::new(ARG_HIPPO_URL)
                         .required(true)
@@ -67,12 +80,12 @@ async fn main() -> anyhow::Result<()> {
         .subcommand(
             App::new("prepare")
                 .about("Reads a HIPPOFACTS file and prepares a Bindle, caching it locally.")
-                .args(bindle_build_args(false, true)),
+                .args(bindle_build_args(BindleBuildRequirements::RequireStageDirectory)),
         )
         .subcommand(
             App::new("bindle")
                 .about("Creates a bindle and pushes it to the Bindle server, but does not notify Hippo")
-                .args(bindle_build_args(true, false)),
+                .args(bindle_build_args(BindleBuildRequirements::RequireBindleServer)),
         )
         .get_matches();
 
@@ -92,7 +105,18 @@ async fn main() -> anyhow::Result<()> {
 /// - ARG_OUTPUT
 /// - ARG_BINDLE_URL
 /// - ARG_STAGING_DIR
-fn bindle_build_args<'a>(require_bindle_server: bool, require_stage_dir: bool) -> Vec<Arg<'a>> {
+fn bindle_build_args<'a>(requirements: BindleBuildRequirements) -> Vec<Arg<'a>> {
+    let require_bindle_server = matches!(
+        requirements,
+        BindleBuildRequirements::RequireBindleServer
+            | BindleBuildRequirements::RequireBindleServerAndStageDirectory
+    );
+    let require_stage_dir = matches!(
+        requirements,
+        BindleBuildRequirements::RequireStageDirectory
+            | BindleBuildRequirements::RequireBindleServerAndStageDirectory
+    );
+
     vec![
         Arg::new(ARG_HIPPOFACTS)
             .required(true)

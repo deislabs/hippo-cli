@@ -18,6 +18,10 @@ impl BuildConditionValues {
             values: HashMap::new(),
         }
     }
+
+    fn lookup(&self, key: &str) -> Option<String> {
+        self.values.get(key).cloned()
+    }
 }
 
 impl<I: Iterator<Item = (String, String)>> From<I> for BuildConditionValues {
@@ -27,27 +31,6 @@ impl<I: Iterator<Item = (String, String)>> From<I> for BuildConditionValues {
         }
     }
 }
-
-impl BuildConditionValues {
-    fn lookup(&self, key: &str) -> Option<String> {
-        self.values.get(key).cloned()
-    }
-}
-
-// impl<
-//     I: Iterator<Item = (K, V)>,
-//     K: Eq + Into<String>,
-//     V: Into<String>,
-// > From<I> for BuildConditionValues {
-//     fn from(source: I) -> Self {
-//         fn stringise<K: Into<String>, V: Into<String>(tuple: &(K, V)) -> (String, String) {
-//             (k.into(), v.into())
-//         }
-//         Self {
-//             values: HashMap::from_iter(source.map(stringise))
-//         }
-//     }
-// }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum BuildConditionExpression {
@@ -105,21 +88,21 @@ fn identifier(input: &str) -> IResult<&str, &str> {
     Ok((rest, m))
 }
 
-fn literal(input: &str) -> IResult<&str, BuildConditionTerm> {
-    let mut literal_parser = delimited(
-        char('\''),
-        many0(alt((alphanumeric1, tag("_"), tag("-")))),
-        char('\'')
-    );
-    let (rest, m) = literal_parser.parse(input)?;
-    Ok((rest, BuildConditionTerm::Literal(m.join(""))))
-}
-
 fn term(input: &str) -> IResult<&str, BuildConditionTerm> {
     let value_ref = map(
         preceded(tag("$"), identifier),
         |m| BuildConditionTerm::ValueRef(m.to_owned())
     );
+
+    let literal = map(
+        delimited(
+            char('\''),
+            many0(alt((alphanumeric1, tag("_"), tag("-")))),
+            char('\'')
+        ),
+        |m| BuildConditionTerm::Literal(m.join(""))
+    );
+
     let mut term_parser = alt((value_ref, literal));
     let (rest, m) = term_parser.parse(input)?;
     Ok((rest, m))

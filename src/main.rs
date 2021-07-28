@@ -34,6 +34,7 @@ enum BindleBuildRequirements {
 }
 
 const ARG_HIPPOFACTS: &str = "hippofacts_path";
+const ARG_BUILD_CONDITIONS: &str = "build_conditions";
 const ARG_STAGING_DIR: &str = "output_dir";
 const ARG_OUTPUT: &str = "output_format";
 const ARG_VERSIONING: &str = "versioning";
@@ -55,7 +56,20 @@ in which you are running the 'hippo' command.
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let matches = App::new(env!("CARGO_PKG_NAME"))
+    let app = command_line_spec();
+    let matches = app.get_matches();
+
+    match matches.subcommand() {
+        // Make a vague attempt to keep these in alphabetical order
+        Some(("bindle", args)) => bindle(args).await,
+        Some(("prepare", args)) => prepare(args).await,
+        Some(("push", args)) => push(args).await,
+        _ => Err(anyhow::anyhow!("No matching command. Try 'hippo help'")),
+    }
+}
+
+fn command_line_spec() -> clap::App<'static> {
+    App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author("Deis Labs")
         .about("The Hippo commandline client")
@@ -96,15 +110,6 @@ async fn main() -> anyhow::Result<()> {
                 .about("Creates a bindle and pushes it to the Bindle server, but does not notify Hippo")
                 .args(bindle_build_args(BindleBuildRequirements::RequireBindleServer)),
         )
-        .get_matches();
-
-    match matches.subcommand() {
-        // Make a vague attempt to keep these in alphabetical order
-        Some(("bindle", args)) => bindle(args).await,
-        Some(("prepare", args)) => prepare(args).await,
-        Some(("push", args)) => push(args).await,
-        _ => Err(anyhow::anyhow!("No matching command. Try 'hippo help'")),
-    }
 }
 
 /// Constructs arguments used to do a Bindle build.
@@ -131,6 +136,14 @@ fn bindle_build_args<'a>(requirements: BindleBuildRequirements) -> Vec<Arg<'a>> 
             .required(true)
             .index(1)
             .about("The artifacts spec (file or directory containing HIPPOFACTS file)"),
+        Arg::new(ARG_BUILD_CONDITIONS)
+            .multiple_occurrences(true)
+            .validator(validate_build_condition)
+            .takes_value(true)
+            .required(false)
+            .short('c')
+            .long("build-condition")
+            .about("Build condition values to set, in the form name=value"),
         Arg::new(ARG_VERSIONING)
             .possible_values(&["dev", "production"])
             .default_value("dev")
@@ -434,8 +447,27 @@ fn bindle_url_is_required() -> anyhow::Error {
     anyhow::anyhow!("Bindle URL is required. Use -s|--server or $BINDLE_URL")
 }
 
-fn parse_build_condition_values(_args: &ArgMatches) -> anyhow::Result<BuildConditionValues> {
-    Ok(BuildConditionValues::none())
+fn parse_build_condition_values(args: &ArgMatches) -> anyhow::Result<BuildConditionValues> {
+    match args.values_of(ARG_BUILD_CONDITIONS) {
+        None => Ok(BuildConditionValues::none()),
+        Some(values) => {
+            let pairs: anyhow::Result<Vec<_>> = values.map(parse_one_build_condition_value).collect();
+            Ok(BuildConditionValues::from(pairs?.into_iter()))
+        }
+    }
+}
+
+fn validate_build_condition(text: &str) -> anyhow::Result<()> {
+    parse_one_build_condition_value(text).map(|_| ())
+}
+
+fn parse_one_build_condition_value(text: &str) -> anyhow::Result<(String, String)> {
+    let bits = text.split('=').collect_vec();
+    if bits.len() != 2 {
+        Err(anyhow::anyhow!("build conditions must be in the form name=value: '{}' was not", text))
+    } else {
+        Ok((bits[0].to_owned(), bits[1].to_owned()))
+    }
 }
 
 /// Describe the desired output format.
@@ -481,5 +513,46 @@ impl BindleConnectionInfo {
         let allow_insecure = args.is_present(ARG_INSECURE);
         args.value_of(ARG_BINDLE_URL)
             .map(|base_url| Self::new(base_url, allow_insecure))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::build_condition::BuildConditionExpression;
+
+    use super::*;
+
+    fn build_condition_of(text: &str) -> BuildConditionExpression {
+        BuildConditionExpression::parse(&Some(text.to_owned())).unwrap()
+    }
+
+    #[test]
+    fn test_can_parse_build_conditions_not_present() {
+        let raw_args = vec!["hippo", "push", "."];
+        let args = command_line_spec().get_matches_from(raw_args);
+        let build_condition_values = parse_build_condition_values(&args).unwrap();
+        assert_eq!(BuildConditionValues::none(), build_condition_values);
+    }
+
+    #[test]
+    fn test_can_parse_build_conditions_one_present() {
+        let raw_args = vec!["hippo", "push", ".", "-s", "foop", "-c", "mode=release"];
+        let all_args = command_line_spec().get_matches_from(raw_args);
+        let (_, args) = all_args.subcommand().unwrap();
+
+        let values = parse_build_condition_values(&args).unwrap();
+        assert_eq!(true, build_condition_of("$mode == 'release'").should_build(&values), "values were {:?}", &values);
+    }
+
+    #[test]
+    fn test_can_parse_build_conditions_several_present() {
+        let raw_args = vec!["hippo", "push", ".", "-c", "mode=release", "-c", "compression=on", "-c", "style=orange"];
+        let all_args = command_line_spec().get_matches_from(raw_args);
+        let (_, args) = all_args.subcommand().unwrap();
+
+        let values = parse_build_condition_values(&args).unwrap();
+        assert_eq!(true, build_condition_of("$mode == 'release'").should_build(&values));
+        assert_eq!(true, build_condition_of("$compression == 'on'").should_build(&values));
+        assert_eq!(true, build_condition_of("$style == 'orange'").should_build(&values));
     }
 }

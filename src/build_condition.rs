@@ -7,6 +7,7 @@ use nom::combinator::{map, recognize};
 use nom::multi::many0;
 use nom::sequence::{delimited, pair, preceded, tuple};
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct BuildConditionValues {
     values: HashMap<String, String>,
 }
@@ -48,14 +49,14 @@ impl BuildConditionValues {
 //     }
 // }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum BuildConditionExpression {
     None,
     Equal(BuildConditionTerm, BuildConditionTerm),
     Unequal(BuildConditionTerm, BuildConditionTerm),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum BuildConditionTerm {
     Literal(String),
     ValueRef(String),
@@ -150,12 +151,6 @@ enum EqOp { Equals, DoesNotEqual }
 #[cfg(test)]
 mod test {
     use super::*;
-
-    // impl BuildConditionValues {
-    //     pub fn none() -> Self {
-    //         Self {}
-    //     }
-    // }
 
     fn build_kind(k: &str) -> impl Iterator<Item = (String, String)> {
         vec![("build_kind".to_owned(), k.to_owned())].into_iter()

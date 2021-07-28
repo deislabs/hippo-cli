@@ -1,17 +1,18 @@
 use std::collections::HashMap;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 use bindle_utils::BindleConnectionInfo;
 use bindle_writer::BindleWriter;
 use clap::{App, Arg, ArgMatches};
 use colored::Colorize;
 use expander::{ExpansionContext, InvoiceVersioning};
-use hippofacts::{HippoFacts, HippoFactsEntry};
+use hippofacts::{HippoFacts, HippoFactsEntry, RawHippoFacts};
 use itertools::Itertools;
 
 mod bindle_pusher;
 mod bindle_utils;
 mod bindle_writer;
+mod command;
 mod expander;
 mod hippo_notifier;
 mod hippofacts;
@@ -95,6 +96,7 @@ async fn main() -> anyhow::Result<()> {
                 .about("Creates a bindle and pushes it to the Bindle server, but does not notify Hippo")
                 .args(bindle_build_args(BindleBuildRequirements::RequireBindleServer)),
         )
+        .subcommand(command::newhippo::NewHippo::new())
         .get_matches();
 
     match matches.subcommand() {
@@ -299,7 +301,8 @@ async fn run(
         .to_path_buf();
 
     // Do this outside the `expand` function so `expand` is more testable
-    let external_invoices = prefetch_required_invoices(&spec, bindle_settings.connection_info()).await?;
+    let external_invoices =
+        prefetch_required_invoices(&spec, bindle_settings.connection_info()).await?;
 
     let expansion_context = ExpansionContext {
         relative_to: source_dir.clone(),
@@ -359,9 +362,14 @@ async fn prefetch_required_invoices(
         return Ok(map);
     }
 
-    let client = bindle_client_factory.as_ref().ok_or_else(|| {
-        anyhow::anyhow!("Spec file contains external references but Bindle server URL is not set")
-    })?.client()?;
+    let client = bindle_client_factory
+        .as_ref()
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Spec file contains external references but Bindle server URL is not set"
+            )
+        })?
+        .client()?;
 
     for external_ref in external_refs {
         let invoice = client.get_yanked_invoice(&external_ref).await?;
@@ -397,15 +405,26 @@ fn hippofacts_file_path(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
 }
 
 const SPEC_FILENAMES: &[&str] = &[
-    "HIPPOFACTS", "hippofacts", "Hippofacts",
-    "HIPPOFACTS.toml", "hippofacts.toml", "Hippofacts.toml"
+    "HIPPOFACTS",
+    "hippofacts",
+    "Hippofacts",
+    "HIPPOFACTS.toml",
+    "hippofacts.toml",
+    "Hippofacts.toml",
 ];
 
 fn find_hippofacts_file_in(source_dir: &Path) -> anyhow::Result<PathBuf> {
-    let candidates = SPEC_FILENAMES.iter().flat_map(|f| {
-        let source = source_dir.join(f);
-        if source.is_file() { Some(source) } else { None }
-    }).collect_vec();
+    let candidates = SPEC_FILENAMES
+        .iter()
+        .flat_map(|f| {
+            let source = source_dir.join(f);
+            if source.is_file() {
+                Some(source)
+            } else {
+                None
+            }
+        })
+        .collect_vec();
 
     match candidates.len() {
         0 => Err(anyhow::anyhow!(

@@ -66,12 +66,14 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .arg(
                     Arg::new(ARG_HIPPO_USERNAME)
+                        .required(true)
                         .long("hippo-username")
                         .env("HIPPO_USERNAME")
                         .about("The username for connecting to Hippo"),
                 )
                 .arg(
                     Arg::new(ARG_HIPPO_PASSWORD)
+                        .required(true)
                         .long("hippo-password")
                         .env("HIPPO_PASSWORD")
                         .about("The username for connecting to Hippo"),

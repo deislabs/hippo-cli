@@ -13,6 +13,19 @@ mod expander;
 mod hippo_notifier;
 mod hippofacts;
 
+/// Indicate which flags are required for bindle builds
+#[allow(dead_code)]
+enum BindleBuildRequirements {
+    /// A Bindle server URL is required
+    RequireBindleServer,
+    /// An explicit stage directory is required
+    RequireStageDirectory,
+    /// Both the Bindle server and the stage directory are required
+    RequireBindleServerAndStageDirectory,
+    /// There are no required arguments for the bindle builds
+    NoRequirements,
+}
+
 const ARG_HIPPOFACTS: &str = "hippofacts_path";
 const ARG_STAGING_DIR: &str = "output_dir";
 const ARG_OUTPUT: &str = "output_format";
@@ -35,13 +48,78 @@ in which you are running the 'hippo' command.
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Arguments necessary to build a bindle (but not push it)
-    // - ARG_HIPPOFACTS
-    // - ARG_VERSIONING
-    // - ARG_OUTPUT
-    // - ARG_BINDLE_URL
-    // - ARG_STAGING_DIR
-    let bindle_build_args = vec![
+    let matches = App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .author("Deis Labs")
+        .about("The Hippo commandline client")
+        .long_about(ABOUT_HIPPO)
+        .subcommand(
+            App::new("push")
+                .about("Packages and uploads Hippo artifacts, notifying Hippo")
+                .args(bindle_build_args(BindleBuildRequirements::RequireBindleServer))
+                .arg(
+                    Arg::new(ARG_HIPPO_URL)
+                        .required(true)
+                        .long("hippo-url")
+                        .env("HIPPO_URL")
+                        .about("The Hippo service to push the artifacts to"),
+                )
+                .arg(
+                    Arg::new(ARG_HIPPO_USERNAME)
+                        .required(true)
+                        .long("hippo-username")
+                        .env("HIPPO_USERNAME")
+                        .about("The username for connecting to Hippo"),
+                )
+                .arg(
+                    Arg::new(ARG_HIPPO_PASSWORD)
+                        .required(true)
+                        .long("hippo-password")
+                        .env("HIPPO_PASSWORD")
+                        .about("The username for connecting to Hippo"),
+                ),
+        )
+        .subcommand(
+            App::new("prepare")
+                .about("Reads a HIPPOFACTS file and prepares a Bindle, caching it locally.")
+                .args(bindle_build_args(BindleBuildRequirements::RequireStageDirectory)),
+        )
+        .subcommand(
+            App::new("bindle")
+                .about("Creates a bindle and pushes it to the Bindle server, but does not notify Hippo")
+                .args(bindle_build_args(BindleBuildRequirements::RequireBindleServer)),
+        )
+        .get_matches();
+
+    match matches.subcommand() {
+        // Make a vague attempt to keep these in alphabetical order
+        Some(("bindle", args)) => bindle(args).await,
+        Some(("prepare", args)) => prepare(args).await,
+        Some(("push", args)) => push(args).await,
+        _ => Err(anyhow::anyhow!("No matching command. Try 'hippo help'")),
+    }
+}
+
+/// Constructs arguments used to do a Bindle build.
+/// Arguments necessary to build a bindle (but not push it)
+/// - ARG_HIPPOFACTS
+/// - ARG_VERSIONING
+/// - ARG_OUTPUT
+/// - ARG_BINDLE_URL
+/// - ARG_STAGING_DIR
+fn bindle_build_args<'a>(requirements: BindleBuildRequirements) -> Vec<Arg<'a>> {
+    let require_bindle_server = matches!(
+        requirements,
+        BindleBuildRequirements::RequireBindleServer
+            | BindleBuildRequirements::RequireBindleServerAndStageDirectory
+    );
+    let require_stage_dir = matches!(
+        requirements,
+        BindleBuildRequirements::RequireStageDirectory
+            | BindleBuildRequirements::RequireBindleServerAndStageDirectory
+    );
+
+    vec![
         Arg::new(ARG_HIPPOFACTS)
             .required(true)
             .index(1)
@@ -64,7 +142,8 @@ async fn main() -> anyhow::Result<()> {
             .short('s')
             .long("server")
             .env("BINDLE_URL")
-            .about("The Bindle server to push the artifacts to"),
+            .about("The Bindle server to push the artifacts to")
+            .required(require_bindle_server),
         Arg::new(ARG_INSECURE)
             .required(false)
             .takes_value(false)
@@ -75,56 +154,9 @@ async fn main() -> anyhow::Result<()> {
             .takes_value(true)
             .short('d')
             .long("dir")
-            .about("The path to output the artifacts to. Required when doing a `hippo prepare`. Other commands will use a temp dir if this is not specified."),
-    ];
-
-    let matches = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author("Deis Labs")
-        .about("The Hippo commandline client")
-        .long_about(ABOUT_HIPPO)
-        .subcommand(
-            App::new("push")
-                .about("Packages and uploads Hippo artifacts, notifying Hippo")
-                .args(&bindle_build_args)
-                .arg(
-                    Arg::new(ARG_HIPPO_URL)
-                        .long("hippo-url")
-                        .env("HIPPO_URL")
-                        .about("The Hippo service to push the artifacts to"),
-                )
-                .arg(
-                    Arg::new(ARG_HIPPO_USERNAME)
-                        .long("hippo-username")
-                        .env("HIPPO_USERNAME")
-                        .about("The username for connecting to Hippo"),
-                )
-                .arg(
-                    Arg::new(ARG_HIPPO_PASSWORD)
-                        .long("hippo-password")
-                        .env("HIPPO_PASSWORD")
-                        .about("The username for connecting to Hippo"),
-                ),
-        )
-        .subcommand(
-            App::new("prepare")
-                .about("Reads a HIPPOFACTS file and prepares a Bindle, caching it locally.")
-                .args(&bindle_build_args),
-        )
-        .subcommand(
-            App::new("bindle")
-                .about("Creates a bindle and pushes it to the Bindle server, but does not notify Hippo")
-                .args(&bindle_build_args),
-        )
-        .get_matches();
-
-    match matches.subcommand() {
-        // Make a vague attempt to keep these in alphabetical order
-        Some(("bindle", args)) => bindle(args).await,
-        Some(("prepare", args)) => prepare(args).await,
-        Some(("push", args)) => push(args).await,
-        _ => Err(anyhow::anyhow!("No matching command. Try 'hippo help'")),
-    }
+            .about("The path to output the artifacts to. Required when doing a `hippo prepare`. Other commands will use a temp dir if this is not specified.")
+            .required(require_stage_dir),
+    ]
 }
 
 /// Run the prepare command
@@ -231,13 +263,16 @@ async fn push(args: &ArgMatches) -> anyhow::Result<()> {
     })?);
 
     // Hippo configuration
-    let hippo_url = args.value_of(ARG_HIPPO_URL).map(|s| s.to_owned());
+    let hippo_url = args
+        .value_of(ARG_HIPPO_URL)
+        .map(|s| s.to_owned())
+        .ok_or_else(|| anyhow::anyhow!("A Hippo url is required. Use --hippo-url or $HIPPO_URL"))?;
     let hippo_username = args.value_of(ARG_HIPPO_USERNAME);
     let hippo_password = args.value_of(ARG_HIPPO_PASSWORD);
 
     // Notification configuration
-    let notify_to = hippo_url.map(|url| hippo_notifier::ConnectionInfo {
-        url,
+    let notify_to = Some(hippo_notifier::ConnectionInfo {
+        url: hippo_url,
         danger_accept_invalid_certs: args.is_present(ARG_INSECURE),
         username: hippo_username.unwrap().to_owned(), // Known to be set if the URL is
         password: hippo_password.unwrap().to_owned(),

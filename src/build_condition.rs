@@ -56,10 +56,19 @@ impl BuildConditionExpression {
     fn parse_rule(rule_text: &str) -> anyhow::Result<Self> {
         match build_cond_expr(rule_text) {
             Ok((_, m)) => Ok(m),
-            Err(e) => Err(anyhow::anyhow!("parse error {}", e)),
+            Err(e) => Err(Self::describe_parse_error(rule_text, e)),
         }
     }
 
+    fn describe_parse_error(parse_text: &str, error: nom::Err<nom::error::Error<&str>>) -> anyhow::Error {
+        let message = match error {
+            nom::Err::Incomplete(_) => "unexpected end of condition".to_owned(),
+            nom::Err::Failure(e) => format!(r#"unexpected text "{}""#, start_text_of(e.input)),
+            nom::Err::Error(e) => format!(r#"unexpected text "{}""#, start_text_of(e.input)),
+        };
+        anyhow::anyhow!(r#"Invalid build condition "{}". Typical format is: "$name ==/!= 'value'"; problem was {}"#, parse_text, message)
+    }
+    
     pub fn should_build(&self, values: &BuildConditionValues) -> bool {
         match self {
             Self::None => true,
@@ -69,6 +78,10 @@ impl BuildConditionExpression {
                 l.eval(values) != r.eval(values),
         }
     }
+}
+
+fn start_text_of(text: &str) -> &str {
+    text.split(' ').take(1).nth(0).unwrap_or("(no text)")
 }
 
 impl BuildConditionTerm {

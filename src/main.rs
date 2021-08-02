@@ -532,7 +532,7 @@ mod test {
 
     #[test]
     fn test_can_parse_build_conditions_not_present() {
-        let raw_args = vec!["hippo", "push", "."];
+        let raw_args = vec!["hippo", "prepare", ".", "-d", "foop"];
         let args = command_line_spec().get_matches_from(raw_args);
         let build_condition_values = parse_build_condition_values(&args).unwrap();
         assert_eq!(BuildConditionValues::none(), build_condition_values);
@@ -540,7 +540,7 @@ mod test {
 
     #[test]
     fn test_can_parse_build_conditions_one_present() {
-        let raw_args = vec!["hippo", "push", ".", "-s", "foop", "-c", "mode=release"];
+        let raw_args = vec!["hippo", "prepare", ".", "-d", "foop", "-c", "mode=release"];
         let all_args = command_line_spec().get_matches_from(raw_args);
         let (_, args) = all_args.subcommand().unwrap();
 
@@ -557,8 +557,10 @@ mod test {
     fn test_can_parse_build_conditions_several_present() {
         let raw_args = vec![
             "hippo",
-            "push",
+            "prepare",
             ".",
+            "-d",
+            "foop",
             "-c",
             "mode=release",
             "-c",

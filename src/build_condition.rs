@@ -1,12 +1,12 @@
-use std::{collections::HashMap, iter::FromIterator};
 use itertools::Itertools;
-use nom::Parser as NomParser;  // Name doesn't matter: we only want it for its methods
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric1, char};
 use nom::combinator::recognize;
 use nom::multi::many0;
 use nom::sequence::{delimited, pair, preceded, tuple};
+use nom::Parser as NomParser; // Name doesn't matter: we only want it for its methods
+use std::{collections::HashMap, iter::FromIterator};
 
 type Span<'a> = nom_locate::LocatedSpan<&'a str>;
 
@@ -33,7 +33,7 @@ impl BuildConditionValues {
 impl<I: Iterator<Item = (String, String)>> From<I> for BuildConditionValues {
     fn from(source: I) -> Self {
         Self {
-            values: HashMap::from_iter(source)
+            values: HashMap::from_iter(source),
         }
     }
 }
@@ -67,7 +67,10 @@ impl BuildConditionExpression {
         }
     }
 
-    fn describe_parse_error(parse_text: &str, error: nom::Err<nom::error::Error<Span>>) -> anyhow::Error {
+    fn describe_parse_error(
+        parse_text: &str,
+        error: nom::Err<nom::error::Error<Span>>,
+    ) -> anyhow::Error {
         let message = match &error {
             nom::Err::Incomplete(_) => "unexpected end of condition".to_owned(),
             nom::Err::Failure(e) => Self::error_text_of(e),
@@ -78,7 +81,10 @@ impl BuildConditionExpression {
             nom::Err::Failure(e) => Some(e.input.location_offset()),
             nom::Err::Error(e) => Some(e.input.location_offset()),
         };
-        let err_line = format!(r#"Invalid build condition "{}". Typical format is: "$name ==/!= 'value'"; problem was {}"#, parse_text, message);
+        let err_line = format!(
+            r#"Invalid build condition "{}". Typical format is: "$name ==/!= 'value'"; problem was {}"#,
+            parse_text, message
+        );
         let diagnostics_lines = match offset {
             None => vec![],
             Some(offset) => vec![
@@ -86,7 +92,10 @@ impl BuildConditionExpression {
                 format!("    {}^-- here", " ".repeat(offset)),
             ],
         };
-        let all_lines = vec![err_line].iter().chain(diagnostics_lines.iter()).join("\n");
+        let all_lines = vec![err_line]
+            .iter()
+            .chain(diagnostics_lines.iter())
+            .join("\n");
         anyhow::Error::msg(all_lines)
     }
 
@@ -96,14 +105,12 @@ impl BuildConditionExpression {
             s => format!(r#"unexpected text "{}""#, s),
         }
     }
-    
+
     pub fn should_build(&self, values: &BuildConditionValues) -> bool {
         match self {
             Self::None => true,
-            Self::Equal(l, r) =>
-                l.eval(values) == r.eval(values),
-            Self::Unequal(l, r) =>
-                l.eval(values) != r.eval(values),
+            Self::Equal(l, r) => l.eval(values) == r.eval(values),
+            Self::Unequal(l, r) => l.eval(values) != r.eval(values),
         }
     }
 }
@@ -118,35 +125,19 @@ impl BuildConditionTerm {
 }
 
 fn identifier<'a>() -> impl Parser<'a, Span<'a>> {
-    recognize(
-        pair(
-            alpha1,
-            many0(alt((alphanumeric1, tag("_"))))
-        )
-    )
+    recognize(pair(alpha1, many0(alt((alphanumeric1, tag("_"))))))
 }
 
 fn value<'a>() -> impl Parser<'a, Span<'a>> {
-    recognize(
-        many0(alt((alphanumeric1, tag("_"), tag("-"), tag("."))))
-    )
+    recognize(many0(alt((alphanumeric1, tag("_"), tag("-"), tag(".")))))
 }
 
 fn value_ref<'a>() -> impl Parser<'a, BuildConditionTerm> {
-    preceded(tag("$"), identifier())
-    .map(
-        |m| BuildConditionTerm::ValueRef((*m).to_owned())
-    )
+    preceded(tag("$"), identifier()).map(|m| BuildConditionTerm::ValueRef((*m).to_owned()))
 }
 
 fn literal<'a>() -> impl Parser<'a, BuildConditionTerm> {
-    delimited(
-        char('\''),
-        value(),
-        char('\'')
-    ).map(
-        |m| BuildConditionTerm::Literal((*m).to_owned())
-    )
+    delimited(char('\''), value(), char('\'')).map(|m| BuildConditionTerm::Literal((*m).to_owned()))
 }
 
 fn term<'a>() -> impl Parser<'a, BuildConditionTerm> {
@@ -157,16 +148,14 @@ fn ws<'a>() -> impl Parser<'a, ()> {
     many0(char(' ')).map(|_| ())
 }
 
-fn binary_op<'a>() -> impl Parser<'a, fn(BuildConditionTerm, BuildConditionTerm) -> BuildConditionExpression> {
-    alt((
-        tag("=="),
-        tag("!=")
-    )).map(
-        |m: Span| parse_binary_op(*m)
-    )
+fn binary_op<'a>(
+) -> impl Parser<'a, fn(BuildConditionTerm, BuildConditionTerm) -> BuildConditionExpression> {
+    alt((tag("=="), tag("!="))).map(|m: Span| parse_binary_op(*m))
 }
 
-fn parse_binary_op(text: &str) -> fn(BuildConditionTerm, BuildConditionTerm) -> BuildConditionExpression {
+fn parse_binary_op(
+    text: &str,
+) -> fn(BuildConditionTerm, BuildConditionTerm) -> BuildConditionExpression {
     if text == "==" {
         BuildConditionExpression::Equal
     } else {
@@ -175,8 +164,7 @@ fn parse_binary_op(text: &str) -> fn(BuildConditionTerm, BuildConditionTerm) -> 
 }
 
 fn build_cond_expr<'a>() -> impl Parser<'a, BuildConditionExpression> {
-    tuple((term(), ws(), binary_op(), ws(), term()))
-    .map(|(left, _, op, _, right)| op(left, right))
+    tuple((term(), ws(), binary_op(), ws(), term())).map(|(left, _, op, _, right)| op(left, right))
 }
 
 fn start_text_of(text: Span) -> &str {
@@ -196,37 +184,58 @@ mod test {
         let expr = BuildConditionExpression::None;
 
         assert_eq!(true, expr.should_build(&BuildConditionValues::none()));
-        assert_eq!(true, expr.should_build(&BuildConditionValues::from(build_kind("release"))));
-        assert_eq!(true, expr.should_build(&BuildConditionValues::from(build_kind("debug"))));
+        assert_eq!(
+            true,
+            expr.should_build(&BuildConditionValues::from(build_kind("release")))
+        );
+        assert_eq!(
+            true,
+            expr.should_build(&BuildConditionValues::from(build_kind("debug")))
+        );
     }
 
     #[test]
     fn test_equality_expression_matches_when_value_matches() {
         let expr = BuildConditionExpression::Equal(
             BuildConditionTerm::ValueRef("build_kind".to_owned()),
-            BuildConditionTerm::Literal("release".to_owned())
+            BuildConditionTerm::Literal("release".to_owned()),
         );
 
         assert_eq!(false, expr.should_build(&BuildConditionValues::none()));
-        assert_eq!(true, expr.should_build(&BuildConditionValues::from(build_kind("release"))));
-        assert_eq!(false, expr.should_build(&BuildConditionValues::from(build_kind("debug"))));
+        assert_eq!(
+            true,
+            expr.should_build(&BuildConditionValues::from(build_kind("release")))
+        );
+        assert_eq!(
+            false,
+            expr.should_build(&BuildConditionValues::from(build_kind("debug")))
+        );
     }
 
     #[test]
     fn test_inequality_expression_matches_when_value_does_not() {
         let expr = BuildConditionExpression::Unequal(
             BuildConditionTerm::ValueRef("build_kind".to_owned()),
-            BuildConditionTerm::Literal("release".to_owned())
+            BuildConditionTerm::Literal("release".to_owned()),
         );
 
         assert_eq!(true, expr.should_build(&BuildConditionValues::none()));
-        assert_eq!(false, expr.should_build(&BuildConditionValues::from(build_kind("release"))));
-        assert_eq!(true, expr.should_build(&BuildConditionValues::from(build_kind("debug"))));
+        assert_eq!(
+            false,
+            expr.should_build(&BuildConditionValues::from(build_kind("release")))
+        );
+        assert_eq!(
+            true,
+            expr.should_build(&BuildConditionValues::from(build_kind("debug")))
+        );
     }
 
     #[test]
     fn test_parsing_none_gives_expression_none() {
-        assert_eq!(BuildConditionExpression::None, BuildConditionExpression::parse(&None).unwrap());
+        assert_eq!(
+            BuildConditionExpression::None,
+            BuildConditionExpression::parse(&None).unwrap()
+        );
     }
 
     #[test]
@@ -235,7 +244,7 @@ mod test {
 
         let expr = BuildConditionExpression::Equal(
             BuildConditionTerm::ValueRef("build_kind".to_owned()),
-            BuildConditionTerm::Literal("release".to_owned())
+            BuildConditionTerm::Literal("release".to_owned()),
         );
 
         assert_eq!(expr, BuildConditionExpression::parse(&rule_text).unwrap());
@@ -247,7 +256,7 @@ mod test {
 
         let expr = BuildConditionExpression::Unequal(
             BuildConditionTerm::ValueRef("build_kind".to_owned()),
-            BuildConditionTerm::Literal("release".to_owned())
+            BuildConditionTerm::Literal("release".to_owned()),
         );
 
         assert_eq!(expr, BuildConditionExpression::parse(&rule_text).unwrap());

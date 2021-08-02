@@ -451,7 +451,8 @@ fn parse_build_condition_values(args: &ArgMatches) -> anyhow::Result<BuildCondit
     match args.values_of(ARG_BUILD_CONDITIONS) {
         None => Ok(BuildConditionValues::none()),
         Some(values) => {
-            let pairs: anyhow::Result<Vec<_>> = values.map(parse_one_build_condition_value).collect();
+            let pairs: anyhow::Result<Vec<_>> =
+                values.map(parse_one_build_condition_value).collect();
             Ok(BuildConditionValues::from(pairs?.into_iter()))
         }
     }
@@ -464,7 +465,10 @@ fn validate_build_condition(text: &str) -> anyhow::Result<()> {
 fn parse_one_build_condition_value(text: &str) -> anyhow::Result<(String, String)> {
     let bits = text.split('=').collect_vec();
     if bits.len() != 2 {
-        Err(anyhow::anyhow!("build conditions must be in the form name=value: '{}' was not", text))
+        Err(anyhow::anyhow!(
+            "build conditions must be in the form name=value: '{}' was not",
+            text
+        ))
     } else {
         Ok((bits[0].to_owned(), bits[1].to_owned()))
     }
@@ -541,18 +545,42 @@ mod test {
         let (_, args) = all_args.subcommand().unwrap();
 
         let values = parse_build_condition_values(&args).unwrap();
-        assert_eq!(true, build_condition_of("$mode == 'release'").should_build(&values), "values were {:?}", &values);
+        assert_eq!(
+            true,
+            build_condition_of("$mode == 'release'").should_build(&values),
+            "values were {:?}",
+            &values
+        );
     }
 
     #[test]
     fn test_can_parse_build_conditions_several_present() {
-        let raw_args = vec!["hippo", "push", ".", "-c", "mode=release", "-c", "compression=on", "-c", "style=orange"];
+        let raw_args = vec![
+            "hippo",
+            "push",
+            ".",
+            "-c",
+            "mode=release",
+            "-c",
+            "compression=on",
+            "-c",
+            "style=orange",
+        ];
         let all_args = command_line_spec().get_matches_from(raw_args);
         let (_, args) = all_args.subcommand().unwrap();
 
         let values = parse_build_condition_values(&args).unwrap();
-        assert_eq!(true, build_condition_of("$mode == 'release'").should_build(&values));
-        assert_eq!(true, build_condition_of("$compression == 'on'").should_build(&values));
-        assert_eq!(true, build_condition_of("$style == 'orange'").should_build(&values));
+        assert_eq!(
+            true,
+            build_condition_of("$mode == 'release'").should_build(&values)
+        );
+        assert_eq!(
+            true,
+            build_condition_of("$compression == 'on'").should_build(&values)
+        );
+        assert_eq!(
+            true,
+            build_condition_of("$style == 'orange'").should_build(&values)
+        );
     }
 }

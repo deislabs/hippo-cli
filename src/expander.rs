@@ -105,9 +105,17 @@ pub fn expand(
     })
 }
 
-fn ensure_at_least_one_entry(hippofacts: &HippoFacts, expansion_context: &ExpansionContext) -> anyhow::Result<()> {
-    if hippofacts.entries_for(&expansion_context.build_condition_values).is_empty() {
-        Err(anyhow::anyhow!("No handlers met the specified build conditions"))
+fn ensure_at_least_one_entry(
+    hippofacts: &HippoFacts,
+    expansion_context: &ExpansionContext,
+) -> anyhow::Result<()> {
+    if hippofacts
+        .entries_for(&expansion_context.build_condition_values)
+        .is_empty()
+    {
+        Err(anyhow::anyhow!(
+            "No handlers met the specified build conditions"
+        ))
     } else {
         Ok(())
     }
@@ -123,8 +131,15 @@ fn expand_id(
     Ok(id)
 }
 
-fn expand_all_entries_to_groups(hippofacts: &HippoFacts, expansion_context: &ExpansionContext) -> anyhow::Result<Vec<Group>> {
-    let groups = hippofacts.entries_for(&expansion_context.build_condition_values).into_iter().map(expand_to_group).collect();
+fn expand_all_entries_to_groups(
+    hippofacts: &HippoFacts,
+    expansion_context: &ExpansionContext,
+) -> anyhow::Result<Vec<Group>> {
+    let groups = hippofacts
+        .entries_for(&expansion_context.build_condition_values)
+        .into_iter()
+        .map(expand_to_group)
+        .collect();
     Ok(groups)
 }
 
@@ -193,14 +208,17 @@ fn expand_all_external_ref_dependencies_to_parcels(
     hippofacts: &HippoFacts,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Vec<Parcel>> {
-    let parcel_lists = hippofacts.entries_for(&expansion_context.build_condition_values).into_iter().map(|handler| match &handler {
-        HippoFactsEntry::ExternalHandler(e) => expand_one_external_ref_dependencies_to_parcels(
-            &e.external,
-            expansion_context,
-            &group_name(handler),
-        ),
-        _ => Ok(vec![]),
-    });
+    let parcel_lists = hippofacts
+        .entries_for(&expansion_context.build_condition_values)
+        .into_iter()
+        .map(|handler| match &handler {
+            HippoFactsEntry::ExternalHandler(e) => expand_one_external_ref_dependencies_to_parcels(
+                &e.external,
+                expansion_context,
+                &group_name(handler),
+            ),
+            _ => Ok(vec![]),
+        });
     let parcels = flatten_or_fail(parcel_lists)?;
     Ok(merge_memberships(parcels))
 }
@@ -605,7 +623,10 @@ mod test {
         expand_test_invoice_cond(name, BuildConditionValues::none())
     }
 
-    fn expand_test_invoice_cond(name: &str, build_condition_values: BuildConditionValues) -> anyhow::Result<Invoice> {
+    fn expand_test_invoice_cond(
+        name: &str,
+        build_condition_values: BuildConditionValues,
+    ) -> anyhow::Result<Invoice> {
         let dir = test_dir(name);
         let hippofacts = read_hippofacts(dir.join("HIPPOFACTS")).unwrap();
         let expansion_context = ExpansionContext {
@@ -1003,9 +1024,7 @@ mod test {
 
     #[test]
     fn test_conditional_entries_with_some_conditions_satisfied() {
-        let build_conditions = vec![
-            ("build_mode".to_owned(), "release".to_owned())
-        ].into_iter();
+        let build_conditions = vec![("build_mode".to_owned(), "release".to_owned())].into_iter();
 
         let build_condition_values = BuildConditionValues::from(build_conditions);
         let invoice = expand_test_invoice_cond("cond1", build_condition_values).unwrap();
@@ -1021,7 +1040,8 @@ mod test {
         let build_conditions = vec![
             ("build_mode".to_owned(), "release".to_owned()),
             ("fancy_schmancy".to_owned(), "true".to_owned()),
-        ].into_iter();
+        ]
+        .into_iter();
 
         let build_condition_values = BuildConditionValues::from(build_conditions);
         let invoice = expand_test_invoice_cond("cond1", build_condition_values).unwrap();

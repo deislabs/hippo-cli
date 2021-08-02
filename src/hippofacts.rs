@@ -112,8 +112,14 @@ impl HippoFacts {
         })
     }
 
-    pub fn entries_for(&self, build_condition_values: &BuildConditionValues) -> Vec<&HippoFactsEntry> {
-        self.entries.iter().filter(|e| e.should_build_under(build_condition_values)).collect()
+    pub fn entries_for(
+        &self,
+        build_condition_values: &BuildConditionValues,
+    ) -> Vec<&HippoFactsEntry> {
+        self.entries
+            .iter()
+            .filter(|e| e.should_build_under(build_condition_values))
+            .collect()
     }
 }
 
@@ -385,14 +391,23 @@ mod test {
         .expect("error parsing test TOML");
         let facts = HippoFacts::try_from(&raw).expect("error parsing raw to HF");
 
-        assert_eq!(&BuildConditionExpression::None, facts.entries[0].build_condition());
-        assert_eq!(&BuildConditionExpression::Equal(
-            BuildConditionTerm::ValueRef("country".to_owned()),
-            BuildConditionTerm::Literal("Australia".to_owned())
-        ), facts.entries[1].build_condition());
-        assert_eq!(&BuildConditionExpression::Unequal(
-            BuildConditionTerm::ValueRef("country".to_owned()),
-            BuildConditionTerm::Literal("Australia".to_owned())
-        ), facts.entries[2].build_condition());
+        assert_eq!(
+            &BuildConditionExpression::None,
+            facts.entries[0].build_condition()
+        );
+        assert_eq!(
+            &BuildConditionExpression::Equal(
+                BuildConditionTerm::ValueRef("country".to_owned()),
+                BuildConditionTerm::Literal("Australia".to_owned())
+            ),
+            facts.entries[1].build_condition()
+        );
+        assert_eq!(
+            &BuildConditionExpression::Unequal(
+                BuildConditionTerm::ValueRef("country".to_owned()),
+                BuildConditionTerm::Literal("Australia".to_owned())
+            ),
+            facts.entries[2].build_condition()
+        );
     }
 }

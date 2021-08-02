@@ -232,6 +232,61 @@ files = ["cache/*.db"]
 there will be no application mapped to the resultant bindle. Pass `-a bindle` to
 push to the Bindle server but not register it with Hippo.
 
+### Conditions
+
+Sometimes a module, or its associated files, may appear in different places depending on
+your build settings. For example, many languages support "debug" and "release" builds which
+put their output in different directories.
+
+To address this, you can make a HIPPOFACTS entry conditional, using the optional `condition`
+property:
+
+```toml
+[[handler]]
+route = "/"
+condition = "$build_mode != 'release'"
+name = "out/debug/birdbattle.wasm"
+
+[[handler]]
+route = "/"
+condition = "$build_mode == 'release'"
+name = "out/release/birdbattle.wasm"
+```
+
+A condition contains three parts:
+
+* The _condition variable_. Variable references begin with a `$` and may contain alphanumeric
+  characters and underscores.
+* The _comparison operator_. This must be `==` (true if the variable matches the value) or
+  `!=` (true if the variable _doesn't_ match the value).
+* The _match value_. Values must be enclosed in single quotes, and may contain alphanumeric
+  charaters, underscores, hyphens and periods.
+
+When you run `hippo prepare`, `hippo bindle` or `hippo push`, only entries whose `condition`
+evaluates to `true` are included in the generated bindle. By default, no variables are set,
+but you can set them using the `-c`/`--build-condition` option. You can provide this
+option multiple times. Each occurrence must have a value of the form `<name>=<value>`.
+If a variable isn't set, it doesn't match any value (even an empty value).
+
+For example, with the above fragment:
+
+* `hippo push .` would create a parcel from `out/debug/birdbattle.wasm` and map it to the `/` route.
+  (The `!=` condition is true because `build_mode` doesn't have a value.)
+* `hippo push . -c build_mode=debug` would also create a parcel from `out/debug/birdbattle.wasm` and
+  map it to the `/` route. (The `!=` condition is true because, although `build_mode` has a value,
+  that value doesn't match `'release'`.)
+* `hippo push . -c build_mode=release` would create a parcel from `out/release/birdbattle.wasm` (note the
+  path) and map it to the `/` route. (The `==` condition is true: the value of `build_mode` is `release`.)
+* `hippo push . -c buildmode=release` would create a parcel from `out/debug/birdbattle.wasm`, because the
+  `buildmode` setting (without an underscore) doesn't get picked up for the refernce `$build_mode` (with
+  an underscore). `hippo` will not warn you if you do this - it is not an error to set a variable that
+  isn't used in the spec.
+* `hippo push . -c build_mode release` is an error - you must have the equals sign and no spaces
+  between the name and value.
+
+The condition applies to the entire entry. For example, if there are files asociated with the
+entry, they will appear in the bindle only if the condition was true.
+
 ## Running the Hippo Client
 
 As a developer you can run `hippo push .` in your `HIPPOFACTS` directory to

@@ -1,17 +1,17 @@
 use std::{collections::HashMap, iter::FromIterator};
 use itertools::Itertools;
+use nom::Parser as NomParser;  // Name doesn't matter: we only want it for its methods
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric1, char};
-use nom::combinator::{map, recognize};
+use nom::combinator::recognize;
 use nom::multi::many0;
 use nom::sequence::{delimited, pair, preceded, tuple};
 
 type Span<'a> = nom_locate::LocatedSpan<&'a str>;
-type IResult<'a, O> = nom::IResult<Span<'a>, O>;
 
-trait Parser<'a, T>: FnMut(Span<'a>) -> IResult<'a, T> {}
-impl<'a, T, F> Parser<'a, T> for F where F: FnMut(Span<'a>) -> IResult<'a, T> {}
+trait Parser<'a, T>: nom::Parser<Span<'a>, T, nom::error::Error<Span<'a>>> {}
+impl<'a, T, P> Parser<'a, T> for P where P: nom::Parser<Span<'a>, T, nom::error::Error<Span<'a>>> {}
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct BuildConditionValues {
@@ -60,8 +60,8 @@ impl BuildConditionExpression {
     }
 
     fn parse_rule(rule_text: &str) -> anyhow::Result<Self> {
-        let mut parse = build_cond_expr();
-        match parse(Span::new(rule_text)) {
+        let mut parser = build_cond_expr();
+        match parser.parse(Span::new(rule_text)) {
             Ok((_, m)) => Ok(m),
             Err(e) => Err(Self::describe_parse_error(rule_text, e)),
         }
@@ -133,19 +133,18 @@ fn value<'a>() -> impl Parser<'a, Span<'a>> {
 }
 
 fn value_ref<'a>() -> impl Parser<'a, BuildConditionTerm> {
-    map(
-        preceded(tag("$"), identifier()),
+    preceded(tag("$"), identifier())
+    .map(
         |m| BuildConditionTerm::ValueRef((*m).to_owned())
     )
 }
 
 fn literal<'a>() -> impl Parser<'a, BuildConditionTerm> {
-    map(
-        delimited(
-            char('\''),
-            value(),
-            char('\'')
-        ),
+    delimited(
+        char('\''),
+        value(),
+        char('\'')
+    ).map(
         |m| BuildConditionTerm::Literal((*m).to_owned())
     )
 }
@@ -155,15 +154,14 @@ fn term<'a>() -> impl Parser<'a, BuildConditionTerm> {
 }
 
 fn ws<'a>() -> impl Parser<'a, ()> {
-    map(many0(char(' ')), |_| ())
+    many0(char(' ')).map(|_| ())
 }
 
 fn binary_op<'a>() -> impl Parser<'a, fn(BuildConditionTerm, BuildConditionTerm) -> BuildConditionExpression> {
-    map(
-        alt((
-            tag("=="),
-            tag("!=")
-        )),
+    alt((
+        tag("=="),
+        tag("!=")
+    )).map(
         |m: Span| parse_binary_op(*m)
     )
 }
@@ -177,10 +175,8 @@ fn parse_binary_op(text: &str) -> fn(BuildConditionTerm, BuildConditionTerm) -> 
 }
 
 fn build_cond_expr<'a>() -> impl Parser<'a, BuildConditionExpression> {
-    let seq = tuple((term(), ws(), binary_op(), ws(), term()));
-    map(seq,
-        |(left, _, op, _, right)| op(left, right)
-    )
+    tuple((term(), ws(), binary_op(), ws(), term()))
+    .map(|(left, _, op, _, right)| op(left, right))
 }
 
 fn start_text_of(text: Span) -> &str {

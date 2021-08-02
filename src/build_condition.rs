@@ -6,7 +6,7 @@ use nom::combinator::recognize;
 use nom::multi::many0;
 use nom::sequence::{delimited, pair, preceded, tuple};
 use nom::Parser as NomParser; // Name doesn't matter: we only want it for its methods
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 type Span<'a> = nom_locate::LocatedSpan<&'a str>;
 

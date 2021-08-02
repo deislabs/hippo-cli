@@ -72,6 +72,8 @@ pub fn expand(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Warned<Invoice>> {
     WarnContext::run(|wc| {
+        ensure_at_least_one_entry(hippofacts, expansion_context)?;
+        
         let groups = expand_all_entries_to_groups(&hippofacts, expansion_context)?;
         let handler_parcels = expand_module_entries_to_parcels(&hippofacts, expansion_context)?;
         let external_dependent_parcels =
@@ -101,6 +103,14 @@ pub fn expand(
     
         Ok(invoice)
     })
+}
+
+fn ensure_at_least_one_entry(hippofacts: &HippoFacts, expansion_context: &ExpansionContext) -> anyhow::Result<()> {
+    if hippofacts.entries_for(&expansion_context.build_condition_values).is_empty() {
+        Err(anyhow::anyhow!("No handlers met the specified build conditions"))
+    } else {
+        Ok(())
+    }
 }
 
 fn expand_id(

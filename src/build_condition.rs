@@ -6,7 +6,7 @@ use nom::combinator::recognize;
 use nom::multi::many0;
 use nom::sequence::{delimited, pair, preceded, tuple};
 use nom::Parser as NomParser; // Name doesn't matter: we only want it for its methods
-use std::{collections::HashMap, iter::FromIterator};
+use std::{collections::HashMap};
 
 type Span<'a> = nom_locate::LocatedSpan<&'a str>;
 
@@ -33,7 +33,7 @@ impl BuildConditionValues {
 impl<I: Iterator<Item = (String, String)>> From<I> for BuildConditionValues {
     fn from(source: I) -> Self {
         Self {
-            values: HashMap::from_iter(source),
+            values: source.collect(),
         }
     }
 }
@@ -168,7 +168,7 @@ fn build_cond_expr<'a>() -> impl Parser<'a, BuildConditionExpression> {
 }
 
 fn start_text_of(text: Span) -> &str {
-    text.split(' ').take(1).nth(0).unwrap_or("")
+    text.split(' ').next().unwrap_or("")
 }
 
 #[cfg(test)]

@@ -208,7 +208,7 @@ async fn prepare(args: &ArgMatches) -> anyhow::Result<()> {
     run(
         &source,
         &destination,
-        &build_condition_values,
+        build_condition_values,
         invoice_versioning,
         output_format,
         bindle_settings,
@@ -243,7 +243,7 @@ async fn bindle(args: &ArgMatches) -> anyhow::Result<()> {
     run(
         &source,
         &destination,
-        &build_condition_values,
+        build_condition_values,
         invoice_versioning,
         output_format,
         bindle_settings,
@@ -291,7 +291,7 @@ async fn push(args: &ArgMatches) -> anyhow::Result<()> {
     run(
         &source,
         &destination,
-        &build_condition_values,
+        build_condition_values,
         invoice_versioning,
         output_format,
         bindle_settings,
@@ -305,7 +305,7 @@ async fn push(args: &ArgMatches) -> anyhow::Result<()> {
 async fn run(
     source: impl AsRef<std::path::Path>,
     destination: impl AsRef<std::path::Path>,
-    build_condition_values: &BuildConditionValues,
+    build_condition_values: BuildConditionValues,
     invoice_versioning: InvoiceVersioning,
     output_format: OutputFormat,
     bindle_settings: BindleSettings,
@@ -320,13 +320,13 @@ async fn run(
         .to_path_buf();
 
     // Do this outside the `expand` function so `expand` is more testable
-    let external_invoices = prefetch_required_invoices(&spec, build_condition_values, bindle_settings.connection_info()).await?;
+    let external_invoices = prefetch_required_invoices(&spec, &build_condition_values, bindle_settings.connection_info()).await?;
 
     let expansion_context = ExpansionContext {
         relative_to: source_dir.clone(),
         invoice_versioning,
         external_invoices,
-        build_condition_values: BuildConditionValues::none(),
+        build_condition_values,
     };
 
     let (invoice, warnings) = expander::expand(&spec, &expansion_context)?.into();

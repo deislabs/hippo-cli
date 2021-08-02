@@ -1,11 +1,15 @@
 use std::{collections::HashMap, iter::FromIterator};
-use nom::{IResult, Parser};
+use itertools::Itertools;
+use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric1, char};
 use nom::combinator::{map, recognize};
 use nom::multi::many0;
 use nom::sequence::{delimited, pair, preceded, tuple};
+
+type Span<'a> = nom_locate::LocatedSpan<&'a str>;
+type IResult<'a, O> = nom::IResult<Span<'a>, O>;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct BuildConditionValues {
@@ -54,19 +58,40 @@ impl BuildConditionExpression {
     }
 
     fn parse_rule(rule_text: &str) -> anyhow::Result<Self> {
-        match build_cond_expr(rule_text) {
+        match build_cond_expr(Span::new(rule_text)) {
             Ok((_, m)) => Ok(m),
             Err(e) => Err(Self::describe_parse_error(rule_text, e)),
         }
     }
 
-    fn describe_parse_error(parse_text: &str, error: nom::Err<nom::error::Error<&str>>) -> anyhow::Error {
-        let message = match error {
+    fn describe_parse_error(parse_text: &str, error: nom::Err<nom::error::Error<Span>>) -> anyhow::Error {
+        let message = match &error {
             nom::Err::Incomplete(_) => "unexpected end of condition".to_owned(),
-            nom::Err::Failure(e) => format!(r#"unexpected text "{}""#, start_text_of(e.input)),
-            nom::Err::Error(e) => format!(r#"unexpected text "{}""#, start_text_of(e.input)),
+            nom::Err::Failure(e) => Self::error_text_of(e),
+            nom::Err::Error(e) => Self::error_text_of(e),
         };
-        anyhow::anyhow!(r#"Invalid build condition "{}". Typical format is: "$name ==/!= 'value'"; problem was {}"#, parse_text, message)
+        let offset = match &error {
+            nom::Err::Incomplete(_) => None,
+            nom::Err::Failure(e) => Some(e.input.location_offset()),
+            nom::Err::Error(e) => Some(e.input.location_offset()),
+        };
+        let err_line = format!(r#"Invalid build condition "{}". Typical format is: "$name ==/!= 'value'"; problem was {}"#, parse_text, message);
+        let diagnostics_lines = match offset {
+            None => vec![],
+            Some(offset) => vec![
+                format!("    {}", parse_text),
+                format!("    {}^-- here", " ".repeat(offset)),
+            ],
+        };
+        let all_lines = vec![err_line].iter().chain(diagnostics_lines.iter()).join("\n");
+        anyhow::Error::msg(all_lines)
+    }
+
+    fn error_text_of(e: &nom::error::Error<Span>) -> String {
+        match start_text_of(e.input) {
+            "" => "unexpected end of condition".to_owned(),
+            s => format!(r#"unexpected text "{}""#, s),
+        }
     }
     
     pub fn should_build(&self, values: &BuildConditionValues) -> bool {
@@ -80,8 +105,8 @@ impl BuildConditionExpression {
     }
 }
 
-fn start_text_of(text: &str) -> &str {
-    text.split(' ').take(1).nth(0).unwrap_or("(no text)")
+fn start_text_of(text: Span) -> &str {
+    text.split(' ').take(1).nth(0).unwrap_or("")
 }
 
 impl BuildConditionTerm {
@@ -93,15 +118,22 @@ impl BuildConditionTerm {
     }
 }
 
-fn identifier(input: &str) -> IResult<&str, &str> {
+fn identifier(input: Span) -> IResult<&str> {
     let (rest, m) = recognize(pair(
         alpha1,
         many0(alt((alphanumeric1, tag("_"))))
     ))(input)?;
-    Ok((rest, m))
+    Ok((rest, *m))
 }
 
-fn term(input: &str) -> IResult<&str, BuildConditionTerm> {
+fn value(input: Span) -> IResult<&str> {
+    let (rest, m) = recognize(
+        many0(alt((alphanumeric1, tag("_"), tag("-"), tag("."))))
+    )(input)?;
+    Ok((rest, *m))
+}
+
+fn term(input: Span) -> IResult<BuildConditionTerm> {
     let value_ref = map(
         preceded(tag("$"), identifier),
         |m| BuildConditionTerm::ValueRef(m.to_owned())
@@ -110,10 +142,10 @@ fn term(input: &str) -> IResult<&str, BuildConditionTerm> {
     let literal = map(
         delimited(
             char('\''),
-            many0(alt((alphanumeric1, tag("_"), tag("-")))),
+            value,
             char('\'')
         ),
-        |m| BuildConditionTerm::Literal(m.join(""))
+        |m| BuildConditionTerm::Literal(m.to_owned()) // .join(""))
     );
 
     let mut term_parser = alt((value_ref, literal));
@@ -121,15 +153,15 @@ fn term(input: &str) -> IResult<&str, BuildConditionTerm> {
     Ok((rest, m))
 }
 
-fn eq_op(input: &str) -> IResult<&str, EqOp> {
+fn eq_op(input: Span) -> IResult<EqOp> {
     let (rest, m) = recognize(alt((
         tag("=="),
         tag("!=")
     )))(input)?;
-    Ok((rest, if m == "==" { EqOp::Equals } else { EqOp::DoesNotEqual }))
+    Ok((rest, if *m == "==" { EqOp::Equals } else { EqOp::DoesNotEqual }))
 }
 
-fn build_cond_expr(input: &str) -> IResult<&str, BuildConditionExpression> {
+fn build_cond_expr(input: Span) -> IResult<BuildConditionExpression> {
     // TODO: this is horrible
     let ws1 = many0(char(' '));
     let ws2 = many0(char(' '));

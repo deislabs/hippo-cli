@@ -530,19 +530,32 @@ mod test {
         BuildConditionExpression::parse(&Some(text.to_owned())).unwrap()
     }
 
+    fn dummy_prepare_command(extra_args: Vec<&str>) -> Vec<String> {
+        let base_args_iter = vec!["hippo", "prepare", ".", "-d", "foop"].into_iter();
+        let extra_args_iter = extra_args.into_iter();
+        base_args_iter
+            .chain(extra_args_iter)
+            .map(|s| s.to_owned())
+            .collect()
+    }
+
+    fn prepare_command_args(extra_args: Vec<&str>) -> ArgMatches {
+        let raw_args = dummy_prepare_command(extra_args);
+        let all_args = command_line_spec().get_matches_from(raw_args);
+        let (_, args) = all_args.subcommand().unwrap();
+        args.clone()
+    }
+
     #[test]
     fn test_can_parse_build_conditions_not_present() {
-        let raw_args = vec!["hippo", "prepare", ".", "-d", "foop"];
-        let args = command_line_spec().get_matches_from(raw_args);
+        let args = prepare_command_args(vec![]);
         let build_condition_values = parse_build_condition_values(&args).unwrap();
         assert_eq!(BuildConditionValues::none(), build_condition_values);
     }
 
     #[test]
     fn test_can_parse_build_conditions_one_present() {
-        let raw_args = vec!["hippo", "prepare", ".", "-d", "foop", "-c", "mode=release"];
-        let all_args = command_line_spec().get_matches_from(raw_args);
-        let (_, args) = all_args.subcommand().unwrap();
+        let args = prepare_command_args(vec!["-c", "mode=release"]);
 
         let values = parse_build_condition_values(&args).unwrap();
         assert_eq!(
@@ -555,21 +568,14 @@ mod test {
 
     #[test]
     fn test_can_parse_build_conditions_several_present() {
-        let raw_args = vec![
-            "hippo",
-            "prepare",
-            ".",
-            "-d",
-            "foop",
+        let args = prepare_command_args(vec![
             "-c",
             "mode=release",
             "-c",
             "compression=on",
             "-c",
             "style=orange",
-        ];
-        let all_args = command_line_spec().get_matches_from(raw_args);
-        let (_, args) = all_args.subcommand().unwrap();
+        ]);
 
         let values = parse_build_condition_values(&args).unwrap();
         assert_eq!(

@@ -246,29 +246,31 @@ fn expand_files_to_parcels(
     entry: &HippoFactsEntry,
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Warned<Vec<Parcel>>> {
-    let patterns = entry.files();
-    let parcels = patterns
-        .iter()
-        .map(|f| expand_file_to_parcels(f, expansion_context, &group_name(entry)));
-    let parcels = flatten_or_fail(parcels)?;
-    let result = if parcels.is_empty() {
-        Warned::from((parcels, "TODO: this check is at the wrong level - needs to be in expand_file_to_parcels"))
-    } else {
-        Warned::from(parcels)
-    };
-    Ok(result)
+    WarnContext::run(|wc| {
+        let patterns = entry.files();
+        let parcels = patterns
+            .iter()
+            .map(|f| expand_file_to_parcels(f, expansion_context, &group_name(entry)).unwarn(wc));
+        flatten_or_fail(parcels)
+    })
 }
 
 fn expand_file_to_parcels(
     pattern: &str,
     expansion_context: &ExpansionContext,
     member_of: &str,
-) -> anyhow::Result<Vec<Parcel>> {
+) -> anyhow::Result<Warned<Vec<Parcel>>> {
     let paths = glob::glob(&expansion_context.to_absolute(pattern))?;
-    paths
+    let parcels = paths
         .into_iter()
         .map(|p| try_convert_one_match_to_parcel(p, expansion_context, member_of))
-        .collect()
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    let warned_parcels = if parcels.is_empty() {
+        Warned::from((parcels, format!("No files matched pattern {}", pattern)))
+    } else {
+        Warned::from(parcels)
+    };
+    Ok(warned_parcels)
 }
 
 fn try_convert_one_match_to_parcel(

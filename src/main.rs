@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use bindle_writer::BindleWriter;
 use clap::{App, Arg, ArgMatches};
+use colored::Colorize;
 use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::{HippoFacts, HippoFactsEntry};
 
@@ -320,7 +321,7 @@ async fn run(
     let (invoice, warnings) = expander::expand(&spec, &expansion_context)?.into();
 
     for warning in &warnings {
-        eprintln!("warning: {}", warning);
+        eprintln!("{}", format!("warning: {}", warning).yellow());
     }
 
     let writer = BindleWriter::new(&source_dir, &destination);

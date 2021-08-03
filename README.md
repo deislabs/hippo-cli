@@ -278,9 +278,9 @@ For example, with the above fragment:
 * `hippo push . -c build_mode=release` would create a parcel from `out/release/birdbattle.wasm` (note the
   path) and map it to the `/` route. (The `==` condition is true: the value of `build_mode` is `release`.)
 * `hippo push . -c buildmode=release` would create a parcel from `out/debug/birdbattle.wasm`, because the
-  `buildmode` setting (without an underscore) doesn't get picked up for the refernce `$build_mode` (with
-  an underscore). `hippo` will not warn you if you do this - it is not an error to set a variable that
-  isn't used in the spec.
+  `buildmode` setting (without an underscore) doesn't get picked up for the reference `$build_mode` (with
+  an underscore). `hippo` will warn you if you set a variable that isn't used in the spec, but will
+  still perform the operation - it is _not_ an error.
 * `hippo push . -c build_mode release` is an error - you must have the equals sign and no spaces
   between the name and value.
 

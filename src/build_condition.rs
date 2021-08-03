@@ -8,6 +8,8 @@ use nom::sequence::{delimited, pair, preceded, tuple};
 use nom::Parser as NomParser; // Name doesn't matter: we only want it for its methods
 use std::collections::HashMap;
 
+use crate::hippofacts::HippoFacts;
+
 type Span<'a> = nom_locate::LocatedSpan<&'a str>;
 
 trait Parser<'a, T>: nom::Parser<Span<'a>, T, nom::error::Error<Span<'a>>> {}
@@ -28,6 +30,25 @@ impl BuildConditionValues {
     fn lookup(&self, key: &str) -> Option<String> {
         self.values.get(key).cloned()
     }
+
+    pub fn check_defined_by(&self, spec: &HippoFacts) -> BuildVariableResolution {
+        let defined_by_spec = spec.recognised_build_condition_variables();
+        let unrecognised_given = self
+            .values
+            .keys()
+            .map(|k| k.to_owned())
+            .filter(|k| !defined_by_spec.contains(k))
+            .collect();
+        BuildVariableResolution {
+            defined_by_spec: defined_by_spec.into_iter().collect(),
+            unrecognised_given,
+        }
+    }
+}
+
+pub struct BuildVariableResolution {
+    pub defined_by_spec: Vec<String>,
+    pub unrecognised_given: Vec<String>,
 }
 
 impl<I: Iterator<Item = (String, String)>> From<I> for BuildConditionValues {
@@ -113,6 +134,14 @@ impl BuildConditionExpression {
             Self::Unequal(l, r) => l.eval(values) != r.eval(values),
         }
     }
+
+    pub fn variables(&self) -> Vec<String> {
+        match self {
+            Self::None => vec![],
+            Self::Equal(l, r) => l.variables().chain(r.variables()).collect(),
+            Self::Unequal(l, r) => l.variables().chain(r.variables()).collect(),
+        }
+    }
 }
 
 impl BuildConditionTerm {
@@ -120,6 +149,13 @@ impl BuildConditionTerm {
         match self {
             Self::Literal(s) => Some(s.clone()),
             Self::ValueRef(k) => values.lookup(k),
+        }
+    }
+
+    fn variables(&self) -> impl Iterator<Item = String> {
+        match self {
+            Self::Literal(_) => None.into_iter(),
+            Self::ValueRef(k) => Some(k.to_owned()).into_iter(),
         }
     }
 }

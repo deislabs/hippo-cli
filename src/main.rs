@@ -313,6 +313,8 @@ async fn run(
 ) -> anyhow::Result<()> {
     let spec = HippoFacts::read_from(&source)?;
 
+    warn_unrecognised_build_variables(&spec, &build_condition_values);
+
     let source_dir = source
         .as_ref()
         .parent()
@@ -363,6 +365,17 @@ async fn run(
     }
 
     Ok(())
+}
+
+fn warn_unrecognised_build_variables(
+    spec: &HippoFacts,
+    build_condition_values: &BuildConditionValues,
+) {
+    let resolution = build_condition_values.check_defined_by(spec);
+    if !resolution.unrecognised_given.is_empty() {
+        eprintln!("Warning: Unrecognised build variable(s): {}", resolution.unrecognised_given.join(", "));
+        eprintln!("         Did you mean one of: {}", resolution.defined_by_spec.join(", "));
+    }
 }
 
 /// Pre-fetch any invoices that are referenced in the HIPPOFACTS.

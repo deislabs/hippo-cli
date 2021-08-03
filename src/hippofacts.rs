@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, convert::TryFrom};
+use std::{
+    collections::{BTreeMap, HashSet},
+    convert::TryFrom,
+};
 
 use crate::build_condition::{BuildConditionExpression, BuildConditionValues};
 
@@ -120,6 +123,12 @@ impl HippoFacts {
             .iter()
             .filter(|e| e.should_build_under(build_condition_values))
             .collect()
+    }
+
+    pub fn recognised_build_condition_variables(&self) -> HashSet<String> {
+        let conditions = self.entries.iter().map(|e| e.build_condition());
+        let variables = conditions.flat_map(|c| c.variables());
+        variables.collect()
     }
 }
 

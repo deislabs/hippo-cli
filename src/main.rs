@@ -12,6 +12,7 @@ mod bindle_writer;
 mod expander;
 mod hippo_notifier;
 mod hippofacts;
+mod warnings;
 
 /// Indicate which flags are required for bindle builds
 #[allow(dead_code)]
@@ -316,7 +317,11 @@ async fn run(
         external_invoices,
     };
 
-    let invoice = expander::expand(&spec, &expansion_context)?;
+    let (invoice, warnings) = expander::expand(&spec, &expansion_context)?.into();
+
+    for warning in &warnings {
+        eprintln!("warning: {}", warning);
+    }
 
     let writer = BindleWriter::new(&source_dir, &destination);
     writer.write(&invoice).await?;

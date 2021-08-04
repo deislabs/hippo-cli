@@ -393,15 +393,22 @@ fn hippofacts_file_path(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
     }
 }
 
+const SPEC_FILENAMES: &[&str] = &[
+    "HIPPOFACTS", "hippofacts", "Hippofacts",
+    "HIPPOFACTS.toml", "hippofacts.toml", "Hippofacts.toml"
+];
+
 fn find_hippofacts_file_in(source_dir: &PathBuf) -> anyhow::Result<PathBuf> {
-    let source = source_dir.join("HIPPOFACTS");
-    if !source.exists() {
-        return Err(anyhow::anyhow!(
-            "Artifacts spec not found: file {} does not exist",
-            source.to_string_lossy()
-        ));
+    for filename in SPEC_FILENAMES {
+        let source = source_dir.join(filename);
+        if source.is_file() {
+            return Ok(source);
+        }
     }
-    Ok(source)
+    return Err(anyhow::anyhow!(
+        "No artifacts spec not found in directory {}: create a HIPPOFACTS file",
+        source_dir.to_string_lossy()
+    ));
 }
 
 /// Describe the desired output format.

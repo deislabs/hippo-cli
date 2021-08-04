@@ -380,13 +380,21 @@ fn hippofacts_file_path_from_args(args: &ArgMatches) -> anyhow::Result<PathBuf> 
 }
 
 fn hippofacts_file_path(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
-    let source_file_or_dir = std::env::current_dir()?.join(hippofacts_arg);
-    let source = if source_file_or_dir.is_file() {
-        source_file_or_dir
+    let source = std::env::current_dir()?.join(hippofacts_arg);
+    if source.is_dir() {
+        find_hippofacts_file_in(&source)
+    } else if source.is_file() {
+        Ok(source)
     } else {
-        source_file_or_dir.join("HIPPOFACTS")
-    };
+        Err(anyhow::anyhow!(
+            "Artifacts spec not found: file {} does not exist",
+            source.to_string_lossy()
+        ))
+    }
+}
 
+fn find_hippofacts_file_in(source_dir: &PathBuf) -> anyhow::Result<PathBuf> {
+    let source = source_dir.join("HIPPOFACTS");
     if !source.exists() {
         return Err(anyhow::anyhow!(
             "Artifacts spec not found: file {} does not exist",

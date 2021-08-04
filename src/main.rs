@@ -168,10 +168,7 @@ fn bindle_build_args<'a>(requirements: BindleBuildRequirements) -> Vec<Arg<'a>> 
 /// - ARG_OUTPUT
 /// - ARG_BINDLE_URL
 async fn prepare(args: &ArgMatches) -> anyhow::Result<()> {
-    let source = args
-        .value_of(ARG_HIPPOFACTS)
-        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))
-        .and_then(sourcedir)?;
+    let source = hippofacts_file_path_from_args(args)?;
 
     let current_dir = std::env::current_dir()?;
     let destination = args
@@ -208,10 +205,7 @@ async fn prepare(args: &ArgMatches) -> anyhow::Result<()> {
 /// - ARG_OUTPUT
 /// - ARG_BINDLE_URL
 async fn bindle(args: &ArgMatches) -> anyhow::Result<()> {
-    let source = args
-        .value_of(ARG_HIPPOFACTS)
-        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))
-        .and_then(sourcedir)?;
+    let source = hippofacts_file_path_from_args(args)?;
 
     let destination = match args.value_of(ARG_STAGING_DIR) {
         Some(dir) => std::env::current_dir()?.join(dir),
@@ -241,10 +235,7 @@ async fn bindle(args: &ArgMatches) -> anyhow::Result<()> {
 
 /// Package a bindle and push it to a Bindle server, notifying Hippo.
 async fn push(args: &ArgMatches) -> anyhow::Result<()> {
-    let hippofacts_arg = args
-        .value_of(ARG_HIPPOFACTS)
-        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))?;
-    let source = sourcedir(hippofacts_arg)?;
+    let source = hippofacts_file_path_from_args(args)?;
 
     // Local configuration
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
@@ -382,8 +373,13 @@ fn external_bindle_id(entry: &HippoFactsEntry) -> Option<bindle::Id> {
     entry.external_ref().map(|ext| ext.bindle_id)
 }
 
-/// Find the source directory
-fn sourcedir(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
+fn hippofacts_file_path_from_args(args: &ArgMatches) -> anyhow::Result<PathBuf> {
+    args.value_of(ARG_HIPPOFACTS)
+        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))
+        .and_then(hippofacts_file_path)
+}
+
+fn hippofacts_file_path(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
     let source_file_or_dir = std::env::current_dir()?.join(hippofacts_arg);
     let source = if source_file_or_dir.is_file() {
         source_file_or_dir

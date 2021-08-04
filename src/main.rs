@@ -5,6 +5,7 @@ use bindle_writer::BindleWriter;
 use clap::{App, Arg, ArgMatches};
 use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::{HippoFacts, HippoFactsEntry};
+use itertools::Itertools;
 
 mod bindle_pusher;
 mod bindle_utils;
@@ -399,16 +400,22 @@ const SPEC_FILENAMES: &[&str] = &[
 ];
 
 fn find_hippofacts_file_in(source_dir: &PathBuf) -> anyhow::Result<PathBuf> {
-    for filename in SPEC_FILENAMES {
-        let source = source_dir.join(filename);
-        if source.is_file() {
-            return Ok(source);
-        }
+    let candidates = SPEC_FILENAMES.iter().flat_map(|f| {
+        let source = source_dir.join(f);
+        if source.is_file() { Some(source) } else { None }
+    }).collect_vec();
+
+    match candidates.len() {
+        0 => Err(anyhow::anyhow!(
+            "No artifacts spec not found in directory {}: create a HIPPOFACTS file",
+            source_dir.to_string_lossy()
+        )),
+        1 => Ok(candidates[0].clone()),
+        _ => Err(anyhow::anyhow!(
+            "Multiple artifacts specs found in directory {}: pass a specific file",
+            source_dir.to_string_lossy()
+        )),
     }
-    return Err(anyhow::anyhow!(
-        "No artifacts spec not found in directory {}: create a HIPPOFACTS file",
-        source_dir.to_string_lossy()
-    ));
 }
 
 /// Describe the desired output format.

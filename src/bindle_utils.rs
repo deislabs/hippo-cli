@@ -1,5 +1,27 @@
 use itertools::Itertools;
 
+pub struct BindleConnectionInfo {
+    base_url: String,
+    allow_insecure: bool,
+}
+
+impl BindleConnectionInfo {
+    pub fn new<I: Into<String>>(base_url: I, allow_insecure: bool) -> Self {
+        Self {
+            base_url: base_url.into(),
+            allow_insecure,
+        }
+    }
+
+    pub fn client(&self) -> bindle::client::Result<bindle::client::Client> {
+        let options = bindle::client::ClientOptions {
+            http2_prior_knowledge: false,
+            danger_accept_invalid_certs: self.allow_insecure,
+        };
+        bindle::client::Client::new_with_options(&self.base_url, options)
+    }
+}
+
 pub trait ParcelHelpers {
     fn has_annotation(&self, key: &str) -> bool;
     fn requires(&self) -> Vec<String>;

@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
                         .required(true)
                         .long("hippo-password")
                         .env("HIPPO_PASSWORD")
-                        .about("The username for connecting to Hippo"),
+                        .about("The password for connecting to Hippo"),
                 ),
         )
         .subcommand(

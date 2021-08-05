@@ -7,6 +7,7 @@ use clap::{App, Arg, ArgMatches};
 use colored::Colorize;
 use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::{HippoFacts, HippoFactsEntry};
+use itertools::Itertools;
 
 mod bindle_pusher;
 mod bindle_utils;
@@ -171,10 +172,7 @@ fn bindle_build_args<'a>(requirements: BindleBuildRequirements) -> Vec<Arg<'a>> 
 /// - ARG_OUTPUT
 /// - ARG_BINDLE_URL
 async fn prepare(args: &ArgMatches) -> anyhow::Result<()> {
-    let source = args
-        .value_of(ARG_HIPPOFACTS)
-        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))
-        .and_then(sourcedir)?;
+    let source = hippofacts_file_path_from_args(args)?;
 
     let current_dir = std::env::current_dir()?;
     let destination = args
@@ -210,10 +208,7 @@ async fn prepare(args: &ArgMatches) -> anyhow::Result<()> {
 /// - ARG_OUTPUT
 /// - ARG_BINDLE_URL
 async fn bindle(args: &ArgMatches) -> anyhow::Result<()> {
-    let source = args
-        .value_of(ARG_HIPPOFACTS)
-        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))
-        .and_then(sourcedir)?;
+    let source = hippofacts_file_path_from_args(args)?;
 
     let destination = match args.value_of(ARG_STAGING_DIR) {
         Some(dir) => std::env::current_dir()?.join(dir),
@@ -239,10 +234,7 @@ async fn bindle(args: &ArgMatches) -> anyhow::Result<()> {
 
 /// Package a bindle and push it to a Bindle server, notifying Hippo.
 async fn push(args: &ArgMatches) -> anyhow::Result<()> {
-    let hippofacts_arg = args
-        .value_of(ARG_HIPPOFACTS)
-        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))?;
-    let source = sourcedir(hippofacts_arg)?;
+    let source = hippofacts_file_path_from_args(args)?;
 
     // Local configuration
     let versioning_arg = args.value_of(ARG_VERSIONING).unwrap();
@@ -382,22 +374,48 @@ fn external_bindle_id(entry: &HippoFactsEntry) -> Option<bindle::Id> {
     entry.external_ref().map(|ext| ext.bindle_id)
 }
 
-/// Find the source directory
-fn sourcedir(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
-    let source_file_or_dir = std::env::current_dir()?.join(hippofacts_arg);
-    let source = if source_file_or_dir.is_file() {
-        source_file_or_dir
-    } else {
-        source_file_or_dir.join("HIPPOFACTS")
-    };
+fn hippofacts_file_path_from_args(args: &ArgMatches) -> anyhow::Result<PathBuf> {
+    args.value_of(ARG_HIPPOFACTS)
+        .ok_or_else(|| anyhow::Error::msg("HIPPOFACTS file is required"))
+        .and_then(hippofacts_file_path)
+}
 
-    if !source.exists() {
-        return Err(anyhow::anyhow!(
+fn hippofacts_file_path(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
+    let source = std::env::current_dir()?.join(hippofacts_arg);
+    if source.is_dir() {
+        find_hippofacts_file_in(&source)
+    } else if source.is_file() {
+        Ok(source)
+    } else {
+        Err(anyhow::anyhow!(
             "Artifacts spec not found: file {} does not exist",
             source.to_string_lossy()
-        ));
+        ))
     }
-    Ok(source)
+}
+
+const SPEC_FILENAMES: &[&str] = &[
+    "HIPPOFACTS", "hippofacts", "Hippofacts",
+    "HIPPOFACTS.toml", "hippofacts.toml", "Hippofacts.toml"
+];
+
+fn find_hippofacts_file_in(source_dir: &PathBuf) -> anyhow::Result<PathBuf> {
+    let candidates = SPEC_FILENAMES.iter().flat_map(|f| {
+        let source = source_dir.join(f);
+        if source.is_file() { Some(source) } else { None }
+    }).collect_vec();
+
+    match candidates.len() {
+        0 => Err(anyhow::anyhow!(
+            "No artifacts spec not found in directory {}: create a HIPPOFACTS file",
+            source_dir.to_string_lossy()
+        )),
+        1 => Ok(candidates[0].clone()),
+        _ => Err(anyhow::anyhow!(
+            "Multiple artifacts specs found in directory {}: pass a specific file",
+            source_dir.to_string_lossy()
+        )),
+    }
 }
 
 fn bindle_url_is_required() -> anyhow::Error {

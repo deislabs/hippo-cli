@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use bindle_utils::BindleConnectionInfo;
 use bindle_writer::BindleWriter;
 use clap::{App, Arg, ArgMatches};
 use expander::{ExpansionContext, InvoiceVersioning};
@@ -185,8 +186,7 @@ async fn prepare(args: &ArgMatches) -> anyhow::Result<()> {
     let output_format = OutputFormat::parse(args.value_of(ARG_OUTPUT).unwrap());
 
     // NOTE: Prepare currently does not require a Bindle URL, so this could be NoPush(None)
-    let bindle_settings =
-        BindleSettings::NoPush(args.value_of(ARG_BINDLE_URL).map(|s| s.to_owned()));
+    let bindle_settings = BindleSettings::NoPush(BindleConnectionInfo::from_args(args));
 
     run(
         &source,
@@ -221,11 +221,7 @@ async fn bindle(args: &ArgMatches) -> anyhow::Result<()> {
     let invoice_versioning = InvoiceVersioning::parse(args.value_of(ARG_VERSIONING).unwrap());
     let output_format = OutputFormat::parse(args.value_of(ARG_OUTPUT).unwrap());
     let bindle_settings = BindleSettings::Push(
-        args.value_of(ARG_BINDLE_URL)
-            .map(|s| s.to_owned())
-            .ok_or_else(|| {
-                anyhow::anyhow!("Bindle URL is required. Use -s|--server or $BINDLE_URL")
-            })?,
+        BindleConnectionInfo::from_args(args).ok_or_else(bindle_url_is_required)?,
     );
 
     run(
@@ -257,10 +253,9 @@ async fn push(args: &ArgMatches) -> anyhow::Result<()> {
     let output_format = OutputFormat::parse(output_format_arg);
 
     // Bindle configuration
-    let bindle_url = args.value_of(ARG_BINDLE_URL).map(|s| s.to_owned());
-    let bindle_settings = BindleSettings::Push(bindle_url.ok_or_else(|| {
-        anyhow::anyhow!("Bindle URL must be set for this action. Use -s|--server or $BINDLE_URL")
-    })?);
+    let bindle_settings = BindleSettings::Push(
+        BindleConnectionInfo::from_args(args).ok_or_else(bindle_url_is_required)?,
+    );
 
     // Hippo configuration
     let hippo_url = args
@@ -308,7 +303,7 @@ async fn run(
         .to_path_buf();
 
     // Do this outside the `expand` function so `expand` is more testable
-    let external_invoices = prefetch_required_invoices(&spec, bindle_settings.bindle_url()).await?;
+    let external_invoices = prefetch_required_invoices(&spec, bindle_settings.connection_info()).await?;
 
     let expansion_context = ExpansionContext {
         relative_to: source_dir.clone(),
@@ -321,10 +316,10 @@ async fn run(
     let writer = BindleWriter::new(&source_dir, &destination);
     writer.write(&invoice).await?;
 
-    if let BindleSettings::Push(url) = &&bindle_settings {
-        bindle_pusher::push_all(&destination, &invoice.bindle.id, &url).await?;
-        if let Some(hippo_url) = &notify_to {
-            hippo_notifier::register(&invoice.bindle.id, &hippo_url).await?;
+    if let BindleSettings::Push(bindle_connection) = &bindle_settings {
+        bindle_pusher::push_all(&destination, &invoice.bindle.id, bindle_connection).await?;
+        if let Some(hippo_connection) = &notify_to {
+            hippo_notifier::register(&invoice.bindle.id, hippo_connection).await?;
         }
     }
 
@@ -351,7 +346,7 @@ async fn run(
 /// Pre-fetch any invoices that are referenced in the HIPPOFACTS.
 async fn prefetch_required_invoices(
     hippofacts: &HippoFacts,
-    bindle_url: Option<String>,
+    bindle_client_factory: Option<&BindleConnectionInfo>,
 ) -> anyhow::Result<HashMap<bindle::Id, bindle::Invoice>> {
     let mut map = HashMap::new();
 
@@ -364,10 +359,9 @@ async fn prefetch_required_invoices(
         return Ok(map);
     }
 
-    let base_url = bindle_url.as_ref().ok_or_else(|| {
+    let client = bindle_client_factory.as_ref().ok_or_else(|| {
         anyhow::anyhow!("Spec file contains external references but Bindle server URL is not set")
-    })?;
-    let client = bindle::client::Client::new(base_url)?;
+    })?.client()?;
 
     for external_ref in external_refs {
         let invoice = client.get_yanked_invoice(&external_ref).await?;
@@ -400,6 +394,10 @@ fn sourcedir(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
     Ok(source)
 }
 
+fn bindle_url_is_required() -> anyhow::Error {
+    anyhow::anyhow!("Bindle URL is required. Use -s|--server or $BINDLE_URL")
+}
+
 /// Describe the desired output format.
 enum OutputFormat {
     None,
@@ -423,17 +421,25 @@ impl OutputFormat {
 /// Desribe the actions to be taken viz a viz a Bindle server.
 enum BindleSettings {
     /// Do not push to a Bindle server, but still resolve local references.
-    NoPush(Option<String>),
+    NoPush(Option<BindleConnectionInfo>),
     /// Push to a Bindle server, resolving references if necessary.
-    Push(String),
+    Push(BindleConnectionInfo),
 }
 
 impl BindleSettings {
     /// Get the Bindle server URL if it was set.
-    pub fn bindle_url(&self) -> Option<String> {
+    pub fn connection_info(&self) -> Option<&BindleConnectionInfo> {
         match self {
-            Self::NoPush(opt) => opt.clone(),
-            Self::Push(url) => Some(url.clone()),
+            Self::NoPush(opt) => opt.as_ref(),
+            Self::Push(conn) => Some(conn),
         }
+    }
+}
+
+impl BindleConnectionInfo {
+    pub fn from_args(args: &ArgMatches) -> Option<Self> {
+        let allow_insecure = args.is_present(ARG_INSECURE);
+        args.value_of(ARG_BINDLE_URL)
+            .map(|base_url| Self::new(base_url, allow_insecure))
     }
 }

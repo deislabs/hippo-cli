@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use bindle_utils::BindleConnectionInfo;
 use bindle_writer::BindleWriter;
 use clap::{App, Arg, ArgMatches};
+use colored::Colorize;
 use expander::{ExpansionContext, InvoiceVersioning};
 use hippofacts::{HippoFacts, HippoFactsEntry};
 
@@ -13,6 +14,7 @@ mod bindle_writer;
 mod expander;
 mod hippo_notifier;
 mod hippofacts;
+mod warnings;
 
 /// Indicate which flags are required for bindle builds
 #[allow(dead_code)]
@@ -311,7 +313,11 @@ async fn run(
         external_invoices,
     };
 
-    let invoice = expander::expand(&spec, &expansion_context)?;
+    let (invoice, warnings) = expander::expand(&spec, &expansion_context)?.into();
+
+    for warning in &warnings {
+        eprintln!("{}", format!("warning: {}", warning).yellow());
+    }
 
     let writer = BindleWriter::new(&source_dir, &destination);
     writer.write(&invoice).await?;

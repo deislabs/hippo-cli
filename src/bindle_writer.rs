@@ -52,7 +52,7 @@ impl BindleWriter {
 
         let parcel_writes = parcels
             .iter()
-            .map(|parcel| self.write_one_parcel(parcels_dir, &parcel));
+            .map(|parcel| self.write_one_parcel(parcels_dir, parcel));
         futures::future::join_all(parcel_writes)
             .await
             .into_iter()

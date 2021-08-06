@@ -21,9 +21,9 @@ impl<T, I: Into<String>> From<(T, I)> for Warned<T> {
     }
 }
 
-impl<T> Into<(T, Vec<String>)> for Warned<T> {
-    fn into(self) -> (T, Vec<String>) {
-        (self.value, self.warnings)
+impl<T> From<Warned<T>> for (T, Vec<String>) {
+    fn from(w: Warned<T>) -> Self {
+        (w.value, w.warnings)
     }
 }
 

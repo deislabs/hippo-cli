@@ -333,9 +333,7 @@ async fn run(
 
     let (invoice, warnings) = expander::expand(&spec, &expansion_context)?.into();
 
-    for warning in &warnings {
-        eprintln!("{}", format!("warning: {}", warning).yellow());
-    }
+    warn_all(warnings);
 
     let writer = BindleWriter::new(&source_dir, &destination);
     writer.write(&invoice).await?;
@@ -373,8 +371,17 @@ fn warn_unrecognised_build_variables(
 ) {
     let resolution = build_condition_values.check_defined_by(spec);
     if !resolution.unrecognised_given.is_empty() {
-        eprintln!("Warning: Unrecognised build variable(s): {}", resolution.unrecognised_given.join(", "));
-        eprintln!("         Did you mean one of: {}", resolution.defined_by_spec.join(", "));
+        warn(format!("unrecognised build variable(s) '{}'; did you mean on of {}", resolution.unrecognised_given.join(", "), resolution.defined_by_spec.join(", ")));
+    }
+}
+
+fn warn<S: Into<String>>(warning: S) {
+    eprintln!("{}", format!("warning: {}", warning.into()).yellow())
+}
+
+fn warn_all<I: IntoIterator<Item = S>, S: Into<String>>(warnings: I) {
+    for warning in warnings {
+        warn(warning)
     }
 }
 

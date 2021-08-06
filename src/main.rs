@@ -78,6 +78,7 @@ async fn main() -> anyhow::Result<()> {
                 .arg(
                     Arg::new(ARG_HIPPO_PASSWORD)
                         .required(true)
+                        .hide_env_values(true)
                         .long("hippo-password")
                         .env("HIPPO_PASSWORD")
                         .about("The password for connecting to Hippo"),

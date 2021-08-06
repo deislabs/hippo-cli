@@ -471,8 +471,8 @@ where
 }
 
 fn check_for_name_clashes(
-    external_dependent_parcels: &Vec<Parcel>,
-    file_parcels: &Vec<Parcel>,
+    external_dependent_parcels: &[Parcel],
+    file_parcels: &[Parcel],
 ) -> anyhow::Result<()> {
     let file_parcel_names: HashSet<_> = file_parcels
         .iter()

@@ -32,7 +32,7 @@ impl BindleWriter {
     async fn write_invoice_file(
         &self,
         invoice: &Invoice,
-        bindle_dir: &PathBuf,
+        bindle_dir: &Path,
     ) -> anyhow::Result<()> {
         let invoice_text = toml::to_string_pretty(&invoice)?;
         let invoice_file = bindle_dir.join("invoice.toml");
@@ -43,7 +43,7 @@ impl BindleWriter {
     async fn write_parcel_files(
         &self,
         invoice: &Invoice,
-        parcels_dir: &PathBuf,
+        parcels_dir: &Path,
     ) -> anyhow::Result<()> {
         let parcels = match &invoice.parcel {
             Some(p) => p,
@@ -52,7 +52,7 @@ impl BindleWriter {
 
         let parcel_writes = parcels
             .iter()
-            .map(|parcel| self.write_one_parcel(parcels_dir, &parcel));
+            .map(|parcel| self.write_one_parcel(parcels_dir, parcel));
         futures::future::join_all(parcel_writes)
             .await
             .into_iter()
@@ -60,7 +60,7 @@ impl BindleWriter {
         Ok(())
     }
 
-    async fn write_one_parcel(&self, parcels_dir: &PathBuf, parcel: &Parcel) -> anyhow::Result<()> {
+    async fn write_one_parcel(&self, parcels_dir: &Path, parcel: &Parcel) -> anyhow::Result<()> {
         if parcel.has_annotation("hippos_do_not_stage") {
             return Ok(());
         }

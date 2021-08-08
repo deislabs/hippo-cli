@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 use bindle_utils::BindleConnectionInfo;
 use bindle_writer::BindleWriter;
@@ -400,7 +400,7 @@ const SPEC_FILENAMES: &[&str] = &[
     "HIPPOFACTS.toml", "hippofacts.toml", "Hippofacts.toml"
 ];
 
-fn find_hippofacts_file_in(source_dir: &PathBuf) -> anyhow::Result<PathBuf> {
+fn find_hippofacts_file_in(source_dir: &Path) -> anyhow::Result<PathBuf> {
     let candidates = SPEC_FILENAMES.iter().flat_map(|f| {
         let source = source_dir.join(f);
         if source.is_file() { Some(source) } else { None }

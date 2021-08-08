@@ -70,11 +70,11 @@ pub fn expand(
     expansion_context: &ExpansionContext,
 ) -> anyhow::Result<Warned<Invoice>> {
     WarnContext::run(|wc| {
-        let groups = expand_all_entries_to_groups(&hippofacts)?;
-        let handler_parcels = expand_module_entries_to_parcels(&hippofacts, expansion_context)?;
+        let groups = expand_all_entries_to_groups(hippofacts)?;
+        let handler_parcels = expand_module_entries_to_parcels(hippofacts, expansion_context)?;
         let external_dependent_parcels =
-            expand_all_external_ref_dependencies_to_parcels(&hippofacts, expansion_context)?;
-        let file_parcels = expand_all_files_to_parcels(&hippofacts, expansion_context)?.unwarn(wc);
+            expand_all_external_ref_dependencies_to_parcels(hippofacts, expansion_context)?;
+        let file_parcels = expand_all_files_to_parcels(hippofacts, expansion_context)?.unwarn(wc);
         check_for_name_clashes(&external_dependent_parcels, &file_parcels)?;
         let parcels = handler_parcels
             .into_iter()
@@ -205,7 +205,7 @@ fn expand_one_external_ref_dependencies_to_parcels(
             .ok_or_else(|| anyhow::anyhow!("external invoice not found on server"))?;
         let main_parcel = find_handler_parcel(invoice, &external_ref.handler_id)
             .ok_or_else(|| anyhow::anyhow!("external invoice does not contain specified parcel"))?;
-        let required_parcels = invoice.parcels_required_by(&main_parcel);
+        let required_parcels = invoice.parcels_required_by(main_parcel);
         let parcel_copies = required_parcels.iter().map(|p| Parcel {
             label: Label {
                 annotations: annotation_do_not_stage_file(),
@@ -471,8 +471,8 @@ where
 }
 
 fn check_for_name_clashes(
-    external_dependent_parcels: &Vec<Parcel>,
-    file_parcels: &Vec<Parcel>,
+    external_dependent_parcels: &[Parcel],
+    file_parcels: &[Parcel],
 ) -> anyhow::Result<()> {
     let file_parcel_names: HashSet<_> = file_parcels
         .iter()

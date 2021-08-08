@@ -1,5 +1,5 @@
-use std::{collections::HashMap, path::Path};
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{PathBuf, Path};
 
 use bindle_utils::BindleConnectionInfo;
 use bindle_writer::BindleWriter;

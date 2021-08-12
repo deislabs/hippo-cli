@@ -7,7 +7,7 @@ type AnnotationMap = BTreeMap<String, String>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct RawHippoFacts {
+pub(crate) struct RawHippoFacts {
     pub bindle: BindleSpec,
     pub annotations: Option<AnnotationMap>,
     pub handler: Option<Vec<RawHandler>>,
@@ -25,7 +25,7 @@ pub struct BindleSpec {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct RawHandler {
+pub(crate) struct RawHandler {
     pub name: Option<String>,
     pub external: Option<RawExternalRef>,
     pub route: String,
@@ -34,7 +34,7 @@ struct RawHandler {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct RawExport {
+pub(crate) struct RawExport {
     pub name: String,
     pub id: String,
     pub files: Option<Vec<String>>,
@@ -42,7 +42,7 @@ struct RawExport {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct RawExternalRef {
+pub(crate) struct RawExternalRef {
     pub bindle_id: String,
     pub handler_id: String,
 }

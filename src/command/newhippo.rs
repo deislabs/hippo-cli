@@ -3,12 +3,39 @@ use async_trait::async_trait;
 use clap::{App, Arg, ArgMatches};
 use std::path::PathBuf;
 
-pub(crate) const CMD_NEW_HIPPO: &str = "new";
+pub(crate) const CMD_NEW_HIPPO: &str = "hippofacts";
+pub(crate) const CMD_NEW: &str = "new";
 
-pub(crate) struct NewHippo;
+/// The top-level subcommand for `hippo new`
+pub(crate) struct NewSubcommand;
 
 #[async_trait]
-impl super::CommandRunner for NewHippo {
+impl super::CommandRunner for NewSubcommand {
+    fn app<'a>() -> App<'a> {
+        App::new(CMD_NEW)
+            .about("Create project-specific files")
+            .subcommand(NewHippofacts::app())
+    }
+
+    async fn run(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+        match matches.subcommand() {
+            Some((CMD_NEW_HIPPO, args)) => {
+                let cmd = NewHippofacts;
+                cmd.run(args).await
+            }
+            Some((cmd, _)) => anyhow::bail!("Unknown subcommand: {}", cmd),
+            None => anyhow::bail!(
+            "Use one of the subcommands, such as 'hippo new hippofacts'. Try 'hippo new --help'."
+        ),
+        }
+    }
+}
+
+/// The subcommand for `hippo new hippofacts`
+pub(crate) struct NewHippofacts;
+
+#[async_trait]
+impl super::CommandRunner for NewHippofacts {
     // ^^ World's most boring super hero.
 
     fn app<'a>() -> App<'a> {
@@ -60,11 +87,21 @@ impl super::CommandRunner for NewHippo {
         };
 
         // if dir is a directory, join with HIPPOFACTS. Otherwise, use it as a file name.
-        let dest = if tokio::fs::metadata(&destination).await?.is_dir() {
+        let md = tokio::fs::metadata(&destination).await?;
+        let dest = if md.is_dir() {
             PathBuf::from(&destination).join("HIPPOFACTS")
         } else {
             PathBuf::from(&destination)
         };
+
+        // Don't overwrite an existing HIPPOFACTS
+        match tokio::fs::metadata(&dest).await {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e),
+            Ok(_) => {
+                anyhow::bail!("Cowardly refusing to overwrite file. Remove HIPPOFACTS first.")
+            }
+        }?;
 
         let hippofacts = RawHippoFacts {
             bindle: BindleSpec {

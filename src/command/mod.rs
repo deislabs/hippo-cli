@@ -23,7 +23,7 @@ pub fn apps<'a>() -> Vec<App<'a>> {
         upload::Push::app(),
         upload::Bindle::app(),
         upload::Prepare::app(),
-        newhippo::NewHippo::app(),
+        newhippo::NewSubcommand::app(),
     ]
 }
 
@@ -43,7 +43,11 @@ pub async fn exec(name: &str, args: &ArgMatches) -> anyhow::Result<()> {
             cmd.run(args).await
         }
         newhippo::CMD_NEW_HIPPO => {
-            let cmd = newhippo::NewHippo {};
+            let cmd = newhippo::NewHippofacts {};
+            cmd.run(args).await
+        }
+        newhippo::CMD_NEW => {
+            let cmd = newhippo::NewSubcommand {};
             cmd.run(args).await
         }
         _ => anyhow::bail!("Unknown command: {}", name),

@@ -1,8 +1,11 @@
 use async_trait::async_trait;
 use clap::{App, Arg, ArgMatches};
+use colored::Colorize;
+use itertools::Itertools;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use crate::bindle_utils::BindleConnectionInfo;
 use crate::bindle_writer::BindleWriter;
 use crate::expander::{ExpansionContext, InvoiceVersioning};
 use crate::hippo_notifier::ConnectionInfo;
@@ -136,7 +139,7 @@ impl super::CommandRunner for Push {
         let hippo_password = args.value_of(ARG_HIPPO_PASSWORD);
 
         // Notification configuration
-        let notify_to = Some(hippo_notifier::ConnectionInfo {
+        let notify_to = Some(ConnectionInfo {
             url: hippo_url,
             danger_accept_invalid_certs: args.is_present(ARG_INSECURE),
             username: hippo_username.unwrap().to_owned(), // Known to be set if the URL is
@@ -254,7 +257,7 @@ async fn run(
     invoice_versioning: InvoiceVersioning,
     output_format: OutputFormat,
     bindle_settings: BindleSettings,
-    notify_to: Option<hippo_notifier::ConnectionInfo>,
+    notify_to: Option<ConnectionInfo>,
 ) -> anyhow::Result<()> {
     let spec = HippoFacts::read_from(&source)?;
 
@@ -274,7 +277,7 @@ async fn run(
         external_invoices,
     };
 
-    let (invoice, warnings) = expander::expand(&spec, &expansion_context)?.into();
+    let (invoice, warnings) = crate::expander::expand(&spec, &expansion_context)?.into();
 
     for warning in &warnings {
         eprintln!("{}", format!("warning: {}", warning).yellow());
@@ -284,9 +287,9 @@ async fn run(
     writer.write(&invoice).await?;
 
     if let BindleSettings::Push(bindle_connection) = &bindle_settings {
-        bindle_pusher::push_all(&destination, &invoice.bindle.id, bindle_connection).await?;
+        crate::bindle_pusher::push_all(&destination, &invoice.bindle.id, bindle_connection).await?;
         if let Some(hippo_connection) = &notify_to {
-            hippo_notifier::register(&invoice.bindle.id, hippo_connection).await?;
+            crate::hippo_notifier::register(&invoice.bindle.id, hippo_connection).await?;
         }
     }
 

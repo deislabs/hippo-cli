@@ -1,4 +1,4 @@
-use crate::hippofacts::{BindleSpec, RawHippoFacts};
+use crate::hippofacts::{BindleSpec, RawHandler, RawHippoFacts};
 use async_trait::async_trait;
 use clap::{App, Arg, ArgMatches};
 use std::path::PathBuf;
@@ -29,10 +29,35 @@ impl super::CommandRunner for NewHippo {
             .index(1)
             .required(true)
         )
+        .arg(
+            Arg::new("author")
+            .multiple(true)
+            .value_name("AUTHOR")
+            .short('a')
+            .long("author")
+            .about("The name(s) and email(s) of the author(s): 'First Last <user@example.com>'")
+        )
+        .arg(
+            Arg::new("module_name")
+            .takes_value(true)
+            .value_name("MODULE.WASM")
+            .short('m')
+            .long("module")
+            .about("The path to the Wasm module. Example: 'bin/main.wasm'")
+        )
     }
+
     async fn run(&self, opts: &ArgMatches) -> anyhow::Result<()> {
         let destination = opts.value_of("destination_dir").unwrap_or(".").to_string();
         let name = opts.value_of("name").unwrap().to_string(); // TODO: I think required(true) means this is safe.
+        let author = opts.values_of_lossy("author");
+        let modname = opts.value_of("module_name").unwrap_or("main.wasm");
+        let handler = RawHandler {
+            name: Some(modname.to_owned()),
+            route: "/".to_owned(),
+            files: None,
+            external: None,
+        };
 
         // if dir is a directory, join with HIPPOFACTS. Otherwise, use it as a file name.
         let dest = if tokio::fs::metadata(&destination).await?.is_dir() {
@@ -46,11 +71,11 @@ impl super::CommandRunner for NewHippo {
                 name,
                 version: "0.1.0".to_owned(),
                 description: None,
-                authors: None,
+                authors: author,
             },
             annotations: None,
             export: None,
-            handler: None,
+            handler: Some(vec![handler]),
         };
 
         let data = toml::to_vec(&hippofacts)?;

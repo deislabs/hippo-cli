@@ -395,10 +395,7 @@ fn hippofacts_file_path(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
     }
 }
 
-const SPEC_FILENAMES: &[&str] = &[
-    "HIPPOFACTS", "hippofacts", "Hippofacts",
-    "HIPPOFACTS.toml", "hippofacts.toml", "Hippofacts.toml"
-];
+const SPEC_FILENAMES: &[&str] = &["HIPPOFACTS", "hippofacts.toml"];
 
 fn find_hippofacts_file_in(source_dir: &Path) -> anyhow::Result<PathBuf> {
     let candidates = SPEC_FILENAMES.iter().flat_map(|f| {

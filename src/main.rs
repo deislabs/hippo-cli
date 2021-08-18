@@ -49,5 +49,3 @@ async fn main() -> anyhow::Result<()> {
         _ => Err(anyhow::anyhow!("No matching command. Try 'hippo help'")),
     }
 }
-
-//

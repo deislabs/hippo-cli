@@ -60,6 +60,7 @@ async fn main() -> anyhow::Result<()> {
         .subcommand(
             App::new("push")
                 .about("Packages and uploads Hippo artifacts, notifying Hippo")
+                .alias("ship")
                 .args(bindle_build_args(BindleBuildRequirements::RequireBindleServer))
                 .arg(
                     Arg::new(ARG_HIPPO_URL)

@@ -86,6 +86,7 @@ impl super::CommandRunner for Push {
     fn app<'a>() -> App<'a> {
         App::new(CMD_PUSH)
             .about("Packages and uploads Hippo artifacts, notifying Hippo")
+            .alias("ship")
             .args(common_args(CMD_PUSH))
             .arg(
                 Arg::new(ARG_HIPPO_URL)

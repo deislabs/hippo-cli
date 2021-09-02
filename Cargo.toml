@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
-bindle = { version = "0.4.1", default-features = false, features = ["client"] }
+bindle = { git = "https://github.com/deislabs/bindle", branch = "main", features = ["client", "oauth2"] }
 chrono = "0.4"
 clap = { version = "3.0.0-beta.2" }
 colored = "2.0.0"
@@ -22,5 +22,5 @@ mime_guess = { version = "2.0" }
 semver = { version = "0.11", features = ["serde"] }
 serde = {version = "1.0", features = ["derive"]}
 sha2 = "0.9"
-tokio = "1.5.0"
+tokio = {version = "1.8", features = ["time"]}
 toml = "0.5"

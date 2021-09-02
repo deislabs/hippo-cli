@@ -1,8 +1,12 @@
 use itertools::Itertools;
 
+use bindle::client::{Client, ClientBuilder};
+
 pub struct BindleConnectionInfo {
     base_url: String,
     allow_insecure: bool,
+    username: Option<String>,
+    password: Option<String>,
 }
 
 impl BindleConnectionInfo {
@@ -10,15 +14,30 @@ impl BindleConnectionInfo {
         Self {
             base_url: base_url.into(),
             allow_insecure,
+            username: None,
+            password: None,
         }
     }
 
-    pub fn client(&self) -> bindle::client::Result<bindle::client::Client> {
-        let options = bindle::client::ClientOptions {
-            http2_prior_knowledge: false,
-            danger_accept_invalid_certs: self.allow_insecure,
+    pub fn set_username_password<I: Into<String>>(&mut self, username: I, password: I) -> Self {
+        BindleConnectionInfo {
+            base_url: self.base_url.clone(),
+            username: Some(username.into()),
+            password: Some(password.into()),
+            allow_insecure: self.allow_insecure,
+        }
+    }
+
+    pub fn client(&self) -> bindle::client::Result<Client> {
+        let builder = bindle::client::ClientBuilder::default()
+            .http2_prior_knowledge(false)
+            .danger_accept_invalid_certs(self.allow_insecure);
+        let auth = if let Some(username) = self.username {
+            //panic!("Once the PR is merged, we can set the HTTP Basic auth");
+            builder = builder.user_password(username, self.password.unwrap_or_default())
         };
-        bindle::client::Client::new_with_options(&self.base_url, options)
+
+        Ok(builder.build(&self.base_url)?)
     }
 }
 

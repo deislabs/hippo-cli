@@ -29,15 +29,20 @@ impl BindleConnectionInfo {
     }
 
     pub fn client(&self) -> bindle::client::Result<Client> {
-        let builder = bindle::client::ClientBuilder::default()
+        let mut builder = ClientBuilder::default()
             .http2_prior_knowledge(false)
             .danger_accept_invalid_certs(self.allow_insecure);
-        let auth = if let Some(username) = self.username {
-            //panic!("Once the PR is merged, we can set the HTTP Basic auth");
-            builder = builder.user_password(username, self.password.unwrap_or_default())
+        if let Some(username) = &self.username {
+            match &self.password {
+                Some(pw) => builder = builder.user_password(username.to_string(), pw.to_string()),
+                None => {
+                    return Err(bindle::client::ClientError::Other(
+                        "Password is required if username is set".to_owned(),
+                    ));
+                }
+            }
         };
-
-        Ok(builder.build(&self.base_url)?)
+        builder.build(&self.base_url)
     }
 }
 

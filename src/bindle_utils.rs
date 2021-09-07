@@ -10,21 +10,17 @@ pub struct BindleConnectionInfo {
 }
 
 impl BindleConnectionInfo {
-    pub fn new<I: Into<String>>(base_url: I, allow_insecure: bool) -> Self {
+    pub fn new<I: Into<String>>(
+        base_url: I,
+        allow_insecure: bool,
+        username: Option<String>,
+        password: Option<String>,
+    ) -> Self {
         Self {
             base_url: base_url.into(),
             allow_insecure,
-            username: None,
-            password: None,
-        }
-    }
-
-    pub fn set_username_password<I: Into<String>>(&mut self, username: I, password: I) -> Self {
-        BindleConnectionInfo {
-            base_url: self.base_url.clone(),
-            username: Some(username.into()),
-            password: Some(password.into()),
-            allow_insecure: self.allow_insecure,
+            username,
+            password,
         }
     }
 

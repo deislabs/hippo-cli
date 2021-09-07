@@ -465,15 +465,9 @@ impl BindleSettings {
 impl BindleConnectionInfo {
     pub fn from_args(args: &ArgMatches) -> Option<Self> {
         let allow_insecure = args.is_present(ARG_INSECURE);
+        let username = args.value_of(ARG_BINDLE_USERNAME).map(|s| s.to_owned());
+        let password = args.value_of(ARG_BINDLE_PASSWORD).map(|s| s.to_owned());
         args.value_of(ARG_BINDLE_URL)
-            .map(|base_url| Self::new(base_url, allow_insecure))
-            .map(|mut me| {
-                if let Some(username) = args.value_of(ARG_BINDLE_USERNAME) {
-                    let password = args.value_of(ARG_BINDLE_PASSWORD).unwrap_or_default();
-                    me.set_username_password(username, password)
-                } else {
-                    me
-                }
-            })
+            .map(|base_url| Self::new(base_url, allow_insecure, username, password))
     }
 }

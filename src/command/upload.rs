@@ -332,25 +332,32 @@ async fn prefetch_required_invoices(
     hippofacts: &HippoFacts,
     bindle_client_factory: Option<&BindleConnectionInfo>,
 ) -> anyhow::Result<HashMap<bindle::Id, bindle::Invoice>> {
-    match bindle_client_factory {
-        Some(bcf) => bcf.prefetch_required_invoices(hippofacts).await,
-        None => {
-            if hippofacts
-                .entries
-                .iter()
-                .flat_map(external_bindle_id)
-                .next()
-                .is_none()
-            {
-                Ok(HashMap::new())
-            } else {
-                anyhow::bail!(
-                    "Spec file contains external references but Bindle server URL is not set"
-                )
-            }
-        }
+    let mut map = HashMap::new();
+
+    let external_refs: Vec<bindle::Id> = hippofacts
+        .entries
+        .iter()
+        .flat_map(external_bindle_id)
+        .collect();
+    if external_refs.is_empty() {
+        return Ok(map);
     }
-}
+
+    let client = bindle_client_factory
+        .as_ref()
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Spec file contains external references but Bindle server URL is not set"
+            )
+        })?
+        .client()?;
+
+    for external_ref in external_refs {
+        let invoice = client.get_yanked_invoice(&external_ref).await?;
+        map.insert(external_ref, invoice);
+    }
+
+    Ok(map)}
 
 /// Calculate the external Bindle ID from hippofacts data.
 fn external_bindle_id(entry: &HippoFactsEntry) -> Option<bindle::Id> {

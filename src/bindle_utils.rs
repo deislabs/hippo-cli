@@ -1,23 +1,27 @@
 use itertools::Itertools;
-use std::collections::HashMap;
-use std::path::Path;
+use std::sync::Arc;
 
 use bindle::client::{
     tokens::{HttpBasic, NoToken, TokenManager},
     Client, ClientBuilder,
 };
 
-use crate::hippofacts::{HippoFacts, HippoFactsEntry};
+#[derive(Clone)]
+pub struct AnyAuth {
+    token_manager: Arc<Box<dyn TokenManager + Send + Sync>>,
+}
 
-enum AuthMethod {
-    HttpBasic(HttpBasic),
-    None(NoToken),
+#[async_trait::async_trait]
+impl TokenManager for AnyAuth {
+    async fn apply_auth_header(&self, builder: reqwest::RequestBuilder) -> bindle::client::Result<reqwest::RequestBuilder> {
+        self.token_manager.apply_auth_header(builder).await
+    }
 }
 
 pub struct BindleConnectionInfo {
     base_url: String,
     allow_insecure: bool,
-    auth_method: AuthMethod,
+    token_manager: AnyAuth,
 }
 
 impl BindleConnectionInfo {
@@ -27,98 +31,23 @@ impl BindleConnectionInfo {
         username: Option<String>,
         password: Option<String>,
     ) -> Self {
-        let auth_method = match (username, password) {
-            (Some(u), Some(p)) => AuthMethod::HttpBasic(HttpBasic::new(&u, &p)),
-            _ => AuthMethod::None(NoToken::default()),
+        let token_manager: Box<dyn TokenManager + Send + Sync> = match (username, password) {
+            (Some(u), Some(p)) => Box::new(HttpBasic::new(&u, &p)),
+            _ => Box::new(NoToken::default()),
         };
 
         Self {
             base_url: base_url.into(),
             allow_insecure,
-            auth_method,
+            token_manager: AnyAuth { token_manager: Arc::new(token_manager) },
         }
     }
 
-    pub fn client<T: TokenManager>(&self, token_manager: T) -> bindle::client::Result<Client<T>> {
+    pub fn client(&self) -> bindle::client::Result<Client<AnyAuth>> {
         let builder = ClientBuilder::default()
             .http2_prior_knowledge(false)
             .danger_accept_invalid_certs(self.allow_insecure);
-        builder.build(&self.base_url, token_manager)
-    }
-
-    pub async fn push_all(
-        &self,
-        path: impl AsRef<Path>,
-        bindle_id: &bindle::Id,
-    ) -> anyhow::Result<()> {
-        let reader = bindle::standalone::StandaloneRead::new(&path, bindle_id).await?;
-
-        match &self.auth_method {
-            AuthMethod::HttpBasic(token_manager) => {
-                let builder = ClientBuilder::default()
-                    .http2_prior_knowledge(false)
-                    .danger_accept_invalid_certs(self.allow_insecure);
-                let client = builder.build(&self.base_url, token_manager.clone())?;
-                reader
-                    .push(&client)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Error pushing bindle to server: {}", e))?;
-                Ok(())
-            }
-            AuthMethod::None(token_manager) => {
-                let builder = ClientBuilder::default()
-                    .http2_prior_knowledge(false)
-                    .danger_accept_invalid_certs(self.allow_insecure);
-                let client = builder.build(&self.base_url, token_manager.clone())?;
-                reader
-                    .push(&client)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Error pushing bindle to server: {}", e))?;
-                Ok(())
-            }
-        }
-    }
-
-    pub async fn prefetch_required_invoices(
-        &self,
-        hippofacts: &HippoFacts,
-    ) -> anyhow::Result<HashMap<bindle::Id, bindle::Invoice>> {
-        let mut map = HashMap::new();
-        let external_refs: Vec<bindle::Id> = hippofacts
-            .entries
-            .iter()
-            .flat_map(external_bindle_id)
-            .collect();
-        if external_refs.is_empty() {
-            return Ok(map);
-        }
-
-        match &self.auth_method {
-            AuthMethod::HttpBasic(token_manager) => {
-                let builder = ClientBuilder::default()
-                    .http2_prior_knowledge(false)
-                    .danger_accept_invalid_certs(self.allow_insecure);
-                let client = builder.build(&self.base_url, token_manager.clone())?;
-                for external_ref in external_refs {
-                    let invoice = client.get_yanked_invoice(&external_ref).await?;
-                    map.insert(external_ref, invoice);
-                }
-
-                Ok(map)
-            }
-            AuthMethod::None(token_manager) => {
-                let builder = ClientBuilder::default()
-                    .http2_prior_knowledge(false)
-                    .danger_accept_invalid_certs(self.allow_insecure);
-                let client = builder.build(&self.base_url, token_manager.clone())?;
-                for external_ref in external_refs {
-                    let invoice = client.get_yanked_invoice(&external_ref).await?;
-                    map.insert(external_ref, invoice);
-                }
-
-                Ok(map)
-            }
-        }
+        builder.build(&self.base_url, self.token_manager.clone())
     }
 }
 
@@ -199,8 +128,4 @@ fn parcels_required_by_acc(
             parcels_required_by_acc(invoice, new_groups, acc)
         }
     }
-}
-
-fn external_bindle_id(entry: &HippoFactsEntry) -> Option<bindle::Id> {
-    entry.external_ref().map(|ext| ext.bindle_id)
 }

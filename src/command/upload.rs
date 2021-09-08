@@ -16,6 +16,8 @@ const ARG_STAGING_DIR: &str = "output_dir";
 const ARG_OUTPUT: &str = "output_format";
 const ARG_VERSIONING: &str = "versioning";
 const ARG_BINDLE_URL: &str = "bindle_server";
+const ARG_BINDLE_USERNAME: &str = "bindle_username";
+const ARG_BINDLE_PASSWORD: &str = "bindle_password";
 const ARG_HIPPO_URL: &str = "hippo_url";
 const ARG_HIPPO_USERNAME: &str = "hippo_username";
 const ARG_HIPPO_PASSWORD: &str = "hippo_password";
@@ -64,6 +66,16 @@ fn common_args<'a>(cmd: &str) -> Vec<Arg<'a>> {
             .env("BINDLE_URL")
             .about("The Bindle server to push the artifacts to")
             .required(require_bindle_server),
+        Arg::new(ARG_BINDLE_USERNAME)
+            .long("bindle-username")
+            .env("BINDLE_USERNAME")
+            .about("The username to log into Bindle")
+            .requires(ARG_HIPPO_PASSWORD),
+        Arg::new(ARG_BINDLE_PASSWORD)
+            .long("bindle-password")
+            .env("BINDLE_PASSWORD")
+            .hide_env_values(true)
+            .about("The username to log into Bindle"),
         Arg::new(ARG_INSECURE)
             .required(false)
             .takes_value(false)
@@ -107,6 +119,7 @@ impl super::CommandRunner for Push {
                     .long("hippo-password")
                     .env("HIPPO_PASSWORD")
                     .about("The username for connecting to Hippo")
+                    .hide_env_values(true)
                     .required(true),
             )
     }
@@ -319,32 +332,24 @@ async fn prefetch_required_invoices(
     hippofacts: &HippoFacts,
     bindle_client_factory: Option<&BindleConnectionInfo>,
 ) -> anyhow::Result<HashMap<bindle::Id, bindle::Invoice>> {
-    let mut map = HashMap::new();
-
-    let external_refs: Vec<bindle::Id> = hippofacts
-        .entries
-        .iter()
-        .flat_map(external_bindle_id)
-        .collect();
-    if external_refs.is_empty() {
-        return Ok(map);
+    match bindle_client_factory {
+        Some(bcf) => bcf.prefetch_required_invoices(hippofacts).await,
+        None => {
+            if hippofacts
+                .entries
+                .iter()
+                .flat_map(external_bindle_id)
+                .next()
+                .is_none()
+            {
+                Ok(HashMap::new())
+            } else {
+                anyhow::bail!(
+                    "Spec file contains external references but Bindle server URL is not set"
+                )
+            }
+        }
     }
-
-    let client = bindle_client_factory
-        .as_ref()
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "Spec file contains external references but Bindle server URL is not set"
-            )
-        })?
-        .client()?;
-
-    for external_ref in external_refs {
-        let invoice = client.get_yanked_invoice(&external_ref).await?;
-        map.insert(external_ref, invoice);
-    }
-
-    Ok(map)
 }
 
 /// Calculate the external Bindle ID from hippofacts data.
@@ -452,7 +457,9 @@ impl BindleSettings {
 impl BindleConnectionInfo {
     pub fn from_args(args: &ArgMatches) -> Option<Self> {
         let allow_insecure = args.is_present(ARG_INSECURE);
+        let username = args.value_of(ARG_BINDLE_USERNAME).map(|s| s.to_owned());
+        let password = args.value_of(ARG_BINDLE_PASSWORD).map(|s| s.to_owned());
         args.value_of(ARG_BINDLE_URL)
-            .map(|base_url| Self::new(base_url, allow_insecure))
+            .map(|base_url| Self::new(base_url, allow_insecure, username, password))
     }
 }

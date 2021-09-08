@@ -58,7 +58,7 @@ impl super::CommandRunner for NewHippofacts {
         )
         .arg(
             Arg::new("author")
-            .multiple(true)
+            .multiple_occurrences(true)
             .value_name("AUTHOR")
             .short('a')
             .long("author")

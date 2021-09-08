@@ -377,6 +377,15 @@ fn hippofacts_file_path(hippofacts_arg: &str) -> anyhow::Result<PathBuf> {
     }
 }
 
+// The list of filenames to look for has to take case sensitivity
+// into account.
+#[cfg(target_os = "windows")]
+const SPEC_FILENAMES: &[&str] = &["HIPPOFACTS", "hippofacts.toml"];
+// TODO: apparently there is a config option to make Mac filesystems
+// case sensitive; fml.
+#[cfg(target_os = "macos")]
+const SPEC_FILENAMES: &[&str] = &["HIPPOFACTS", "hippofacts.toml"];
+#[cfg(target_os = "linux")]
 const SPEC_FILENAMES: &[&str] = &[
     "HIPPOFACTS",
     "hippofacts",

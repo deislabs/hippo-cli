@@ -64,16 +64,19 @@ fn common_args<'a>(cmd: &str) -> Vec<Arg<'a>> {
             .short('s')
             .long("server")
             .env("BINDLE_URL")
+            .takes_value(true)
             .about("The Bindle server to push the artifacts to")
             .required(require_bindle_server),
         Arg::new(ARG_BINDLE_USERNAME)
             .long("bindle-username")
             .env("BINDLE_USERNAME")
+            .takes_value(true)
             .about("The username to log into Bindle")
             .requires(ARG_BINDLE_PASSWORD),
         Arg::new(ARG_BINDLE_PASSWORD)
             .long("bindle-password")
             .env("BINDLE_PASSWORD")
+            .takes_value(true)
             .hide_env_values(true)
             .about("The username to log into Bindle"),
         Arg::new(ARG_INSECURE)
@@ -103,6 +106,7 @@ impl super::CommandRunner for Push {
             .arg(
                 Arg::new(ARG_HIPPO_URL)
                     .long("hippo-url")
+                    .takes_value(true)
                     .env("HIPPO_URL")
                     .about("The Hippo service to push the artifacts to")
                     .required(true),
@@ -110,6 +114,7 @@ impl super::CommandRunner for Push {
             .arg(
                 Arg::new(ARG_HIPPO_USERNAME)
                     .long("hippo-username")
+                    .takes_value(true)
                     .env("HIPPO_USERNAME")
                     .about("The username for connecting to Hippo")
                     .required(true),
@@ -119,6 +124,7 @@ impl super::CommandRunner for Push {
                     .long("hippo-password")
                     .env("HIPPO_PASSWORD")
                     .about("The username for connecting to Hippo")
+                    .takes_value(true)
                     .hide_env_values(true)
                     .required(true),
             )

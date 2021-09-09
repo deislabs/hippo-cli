@@ -13,7 +13,10 @@ pub struct AnyAuth {
 
 #[async_trait::async_trait]
 impl TokenManager for AnyAuth {
-    async fn apply_auth_header(&self, builder: reqwest::RequestBuilder) -> bindle::client::Result<reqwest::RequestBuilder> {
+    async fn apply_auth_header(
+        &self,
+        builder: reqwest::RequestBuilder,
+    ) -> bindle::client::Result<reqwest::RequestBuilder> {
         self.token_manager.apply_auth_header(builder).await
     }
 }
@@ -39,7 +42,9 @@ impl BindleConnectionInfo {
         Self {
             base_url: base_url.into(),
             allow_insecure,
-            token_manager: AnyAuth { token_manager: Arc::new(token_manager) },
+            token_manager: AnyAuth {
+                token_manager: Arc::new(token_manager),
+            },
         }
     }
 

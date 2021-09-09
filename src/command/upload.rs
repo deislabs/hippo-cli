@@ -357,7 +357,8 @@ async fn prefetch_required_invoices(
         map.insert(external_ref, invoice);
     }
 
-    Ok(map)}
+    Ok(map)
+}
 
 /// Calculate the external Bindle ID from hippofacts data.
 fn external_bindle_id(entry: &HippoFactsEntry) -> Option<bindle::Id> {

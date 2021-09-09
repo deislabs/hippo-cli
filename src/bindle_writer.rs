@@ -29,11 +29,7 @@ impl BindleWriter {
         Ok(())
     }
 
-    async fn write_invoice_file(
-        &self,
-        invoice: &Invoice,
-        bindle_dir: &Path,
-    ) -> anyhow::Result<()> {
+    async fn write_invoice_file(&self, invoice: &Invoice, bindle_dir: &Path) -> anyhow::Result<()> {
         let invoice_text = toml::to_string_pretty(&invoice)?;
         let invoice_file = bindle_dir.join("invoice.toml");
         tokio::fs::write(&invoice_file, &invoice_text).await?;

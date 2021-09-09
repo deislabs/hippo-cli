@@ -490,7 +490,8 @@ fn check_for_name_clashes(
 }
 
 fn current_user() -> Option<String> {
-    std::env::var("USER")
+    std::env::var("HIPPO_USERNAME")
+        .or_else(|_| std::env::var("USER"))
         .or_else(|_| std::env::var("USERNAME"))
         .ok()
 }
@@ -764,6 +765,20 @@ mod test {
         assert_eq!(2, groups.len());
         assert_eq!("out/fake.wasm-files", groups[0].name);
         assert_eq!("out/lies.wasm-files", groups[1].name);
+    }
+
+    #[test]
+    fn test_current_user() {
+        std::env::remove_var("USER");
+        std::env::remove_var("USERNAME");
+        std::env::remove_var("HIPPO_USERNAME");
+        assert_eq!(None, current_user());
+        std::env::set_var("USERNAME", "foo");
+        assert_eq!(Some("foo".to_owned()), current_user());
+        std::env::set_var("USER", "bar");
+        assert_eq!(Some("bar".to_owned()), current_user());
+        std::env::set_var("HIPPO_USERNAME", "carstar");
+        assert_eq!(Some("carstar".to_owned()), current_user());
     }
 
     #[test]

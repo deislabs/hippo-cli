@@ -70,7 +70,7 @@ fn common_args<'a>(cmd: &str) -> Vec<Arg<'a>> {
             .long("bindle-username")
             .env("BINDLE_USERNAME")
             .about("The username to log into Bindle")
-            .requires(ARG_HIPPO_PASSWORD),
+            .requires(ARG_BINDLE_PASSWORD),
         Arg::new(ARG_BINDLE_PASSWORD)
             .long("bindle-password")
             .env("BINDLE_PASSWORD")

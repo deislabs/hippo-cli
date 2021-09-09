@@ -359,7 +359,9 @@ async fn prefetch_required_invoices(
         .client()?;
 
     for external_ref in external_refs {
-        let invoice = client.get_yanked_invoice(&external_ref).await?;
+        let invoice = client.get_yanked_invoice(&external_ref)
+            .await
+            .map_err(|e| anyhow::anyhow!("Error retrieving external reference {}: {}", external_ref, e))?;
         map.insert(external_ref, invoice);
     }
 

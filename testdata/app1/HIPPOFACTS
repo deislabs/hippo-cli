@@ -11,3 +11,8 @@ files = ["scripts/*.js"]
 name = "out/lies.wasm"
 route = "/lies"
 files = ["scripts/*.js", "scripts/*.json"]
+
+[[handler]]
+name = "out/fakeissimo.wasm"
+entrypoint = "even_faker"
+route = "/fake/fake/fake"

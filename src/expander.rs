@@ -9,7 +9,7 @@ use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
 use crate::bindle_utils::InvoiceHelpers;
-use crate::hippofacts::{ExternalRef, HippoFacts, HippoFactsEntry};
+use crate::hippofacts::{Export, ExternalHandler, ExternalRef, HippoFacts, HippoFactsEntry, LocalHandler};
 use crate::warnings::{Unwarn, WarnContext, Warned};
 
 pub struct ExpansionContext {
@@ -154,7 +154,7 @@ fn expand_one_module_entry_to_parcel(
         HippoFactsEntry::LocalHandler(h) => convert_one_match_to_parcel(
             PathBuf::from(expansion_context.to_absolute(&h.name)),
             expansion_context,
-            vec![("route", &h.route), ("file", "false")],
+            h.wagi_features(),
             None,
             None,
             Some(&group_name(entry)),
@@ -162,14 +162,14 @@ fn expand_one_module_entry_to_parcel(
         HippoFactsEntry::ExternalHandler(e) => convert_one_ref_to_parcel(
             &e.external,
             expansion_context,
-            vec![("route", &e.route), ("file", "false")],
+            e.wagi_features(),
             None,
             Some(&group_name(entry)),
         ),
         HippoFactsEntry::Export(e) => convert_one_match_to_parcel(
             PathBuf::from(expansion_context.to_absolute(&e.name)),
             expansion_context,
-            vec![("file", "false")],
+            e.wagi_features(),
             Some(vec![("wagi_handler_id", &e.id)]),
             None,
             Some(&group_name(entry)),
@@ -522,6 +522,36 @@ fn annotation_do_not_stage_file() -> Option<AnnotationMap> {
     Some(annotations)
 }
 
+trait WagiFeatureProvider {
+    fn wagi_features(&self) -> Vec<(&str, &str)>;
+}
+
+impl WagiFeatureProvider for LocalHandler {
+    fn wagi_features(&self) -> Vec<(&str, &str)> {
+        let mut features = vec![("route", &self.route[..]), ("file", "false")];
+        if let Some(entrypoint) = &self.entrypoint {
+            features.push(("entrypoint", &entrypoint[..]));
+        }
+        features
+    }
+}
+
+impl WagiFeatureProvider for ExternalHandler {
+    fn wagi_features(&self) -> Vec<(&str, &str)> {
+        vec![("route", &self.route[..]), ("file", "false")]
+    }
+}
+
+impl WagiFeatureProvider for Export {
+    fn wagi_features(&self) -> Vec<(&str, &str)> {
+        let mut features = vec![("file", "false")];
+        if let Some(entrypoint) = &self.entrypoint {
+            features.push(("entrypoint", &entrypoint[..]));
+        }
+        features
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
@@ -749,6 +779,15 @@ mod test {
     }
 
     #[test]
+    fn test_entrypoint_is_mapped() {
+        let invoice = expand_test_invoice("app1").unwrap();
+        assert_eq!(
+            "even_faker",
+            parcel_feature_value(&invoice, "out/fakeissimo.wasm", "wagi", "entrypoint")
+        );
+    }
+
+    #[test]
     fn test_handler_parcel_is_not_asset() {
         let invoice = expand_test_invoice("app1").unwrap();
         assert_eq!(
@@ -761,9 +800,10 @@ mod test {
     fn test_group_is_created_per_handler() {
         let invoice = expand_test_invoice("app1").unwrap();
         let groups = invoice.group.as_ref().unwrap();
-        assert_eq!(2, groups.len());
+        assert_eq!(3, groups.len());
         assert_eq!("out/fake.wasm-files", groups[0].name);
         assert_eq!("out/lies.wasm-files", groups[1].name);
+        assert_eq!("out/fakeissimo.wasm-files", groups[2].name);
     }
 
     #[test]
@@ -937,6 +977,20 @@ mod test {
                 "occurs both as a local file and as a dependency of an external reference"
             ));
         }
+    }
+
+    #[test]
+    fn test_exports_keep_their_entry_points() {
+        let invoice = expand_test_invoice("lib1").unwrap();
+        let parcels = invoice.parcel.as_ref().unwrap();
+        assert_eq!(4, parcels.len());
+
+        let exported_parcel = parcel_named(&invoice, "wasm/gallery.wasm");
+
+        match exported_parcel.label.feature.as_ref() {
+            None => assert!(false, "No features on the exported parcel"),
+            Some(map) => assert_eq!("serve_pix", map.get("wagi").unwrap().get("entrypoint").unwrap()),
+        };
     }
 
     #[test]

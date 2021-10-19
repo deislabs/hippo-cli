@@ -47,7 +47,7 @@ fn common_args<'a>(cmd: &str) -> Vec<Arg<'a>> {
             .index(1)
             .about("The artifacts spec (file or directory containing HIPPOFACTS file)"),
         Arg::new(ARG_VERSIONING)
-            .possible_values(&["dev", "production"])
+            .possible_values(&["dev", "development", "prod", "production"])
             .default_value("dev")
             .required(false)
             .short('v')
@@ -140,7 +140,7 @@ impl super::CommandRunner for Push {
             Some(dir) => std::env::current_dir()?.join(dir),
             None => std::env::temp_dir().join("hippo-staging"), // TODO: make unpredictable with tempdir?
         };
-        let invoice_versioning = InvoiceVersioning::parse(versioning_arg);
+        let invoice_versioning = InvoiceVersioning::parse(versioning_arg)?;
         let output_format = OutputFormat::parse(output_format_arg);
 
         // Bindle configuration
@@ -203,7 +203,7 @@ impl super::CommandRunner for Bindle {
             None => std::env::temp_dir().join("hippo-staging"), // TODO: make unpredictable with tempdir?
         };
 
-        let invoice_versioning = InvoiceVersioning::parse(args.value_of(ARG_VERSIONING).unwrap());
+        let invoice_versioning = InvoiceVersioning::parse(args.value_of(ARG_VERSIONING).unwrap())?;
         let output_format = OutputFormat::parse(args.value_of(ARG_OUTPUT).unwrap());
         let bindle_settings = BindleSettings::Push(
             BindleConnectionInfo::from_args(args).ok_or_else(bindle_url_is_required)?,
@@ -249,7 +249,7 @@ impl super::CommandRunner for Prepare {
                 anyhow::Error::msg("A staging directory is required for 'prepare'. Use -d|--dir.")
             })?;
 
-        let invoice_versioning = InvoiceVersioning::parse(args.value_of(ARG_VERSIONING).unwrap());
+        let invoice_versioning = InvoiceVersioning::parse(args.value_of(ARG_VERSIONING).unwrap())?;
         let output_format = OutputFormat::parse(args.value_of(ARG_OUTPUT).unwrap());
 
         // NOTE: Prepare currently does not require a Bindle URL, so this could be NoPush(None)

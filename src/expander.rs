@@ -56,11 +56,13 @@ pub enum InvoiceVersioning {
 }
 
 impl InvoiceVersioning {
-    pub fn parse(text: &str) -> Self {
-        if text == "production" {
-            InvoiceVersioning::Production
+    pub fn parse(text: &str) -> anyhow::Result<Self> {
+        if text == "production" || text == "prod" {
+            Ok(InvoiceVersioning::Production)
+        } else if text == "development" || text == "dev" {
+            Ok(InvoiceVersioning::Dev)
         } else {
-            InvoiceVersioning::Dev
+            Err(anyhow::anyhow!("Invalid invoice versioning strategy: choose 'dev' or 'production'"))
         }
     }
 }

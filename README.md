@@ -184,8 +184,7 @@ name = 'bin/cassowary.wasm-files'
 name = 'bin/kea.wasm-files'
 ```
 
-`hippo` does not currently support Bindle's `parcel.label.feature`
-or `signature` features.  It does not yet support push options other than the server URL (e.g. auth).
+`hippo` does not currently support Bindle's `parcel.label.feature` or `signature` features.
 
 ### External handlers
 
@@ -245,6 +244,9 @@ assemble all matching files and publish them as a bindle. In this mode,
 
 The Bindle server is specified in the `BINDLE_URL` environment variable.
 (If you don't want to set the environment variable, pass the `-s` argument with the URL.)
+If the Bindle server requires authentication, specify this via the `BINDLE_USERNAME`
+and `BINDLE_PASSWORD` environment variables (or `--bindle-username` and `--bindle-password`
+options). Note that Bindle authentication is independent of Hippo authentication!
 
 The Hippo URL is specified in the `HIPPO_URL` environment variable. Hippo
 requires authentication: pass the username in `HIPPO_USERNAME` and the password in

@@ -27,6 +27,7 @@ pub struct BindleSpec {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(crate) struct RawHandler {
     pub name: Option<String>,
+    pub entrypoint: Option<String>,
     pub external: Option<RawExternalRef>,
     pub route: String,
     pub files: Option<Vec<String>>,
@@ -36,6 +37,7 @@ pub(crate) struct RawHandler {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(crate) struct RawExport {
     pub name: String,
+    pub entrypoint: Option<String>,
     pub id: String,
     pub files: Option<Vec<String>>,
 }
@@ -55,6 +57,7 @@ pub struct HippoFacts {
 
 pub struct LocalHandler {
     pub name: String,
+    pub entrypoint: Option<String>,
     pub route: String,
     pub files: Option<Vec<String>>,
 }
@@ -78,6 +81,7 @@ pub struct ExternalRef {
 
 pub struct Export {
     pub name: String,
+    pub entrypoint: Option<String>,
     pub id: String,
     pub files: Vec<String>,
 }
@@ -142,9 +146,18 @@ impl TryFrom<&RawHandler> for HippoFactsEntry {
                 raw.route
             )),
         }?;
+        if let Some(_) = &raw.entrypoint {
+            if let HandlerModule::External(_) = &handler_module {
+                anyhow::bail!(
+                    "Route '{}' may not specify an entrypoint on an external reference",
+                    raw.route
+                );
+            }
+        }
         let entry = match handler_module {
             HandlerModule::File(name) => Self::LocalHandler(LocalHandler {
                 name,
+                entrypoint: raw.entrypoint.clone(),
                 route: raw.route.clone(),
                 files: raw.files.clone(),
             }),
@@ -176,6 +189,7 @@ impl TryFrom<&RawExport> for HippoFactsEntry {
     fn try_from(raw: &RawExport) -> anyhow::Result<Self> {
         Ok(Self::Export(Export {
             id: raw.id.clone(),
+            entrypoint: raw.entrypoint.clone(),
             name: raw.name.clone(),
             files: raw.files.clone().unwrap_or_default(),
         }))
@@ -217,6 +231,14 @@ mod test {
             }
         }
 
+        pub fn entrypoint(&self) -> Option<String> {
+            match self {
+                Self::LocalHandler(h) => h.entrypoint.clone(),
+                Self::ExternalHandler(_) => None,
+                Self::Export(e) => e.entrypoint.clone(),
+            }
+        }
+
         pub fn route(&self) -> Option<String> {
             match self {
                 Self::LocalHandler(h) => Some(h.route.clone()),
@@ -250,6 +272,7 @@ mod test {
 
         [[handler]]
         name = "cassowary.wasm"
+        entrypoint = "rawr"
         route = "/birds/savage/rending"
         "#,
         )
@@ -264,10 +287,12 @@ mod test {
         assert_eq!(2, handlers.len());
 
         assert_eq!("penguin.wasm", handlers[0].name().unwrap());
+        assert_eq!(None, handlers[0].entrypoint());
         assert_eq!("/birds/flightless", &handlers[0].route().unwrap());
         assert_eq!(3, handlers[0].files().len());
 
         assert_eq!("cassowary.wasm", handlers[1].name().unwrap());
+        assert_eq!("rawr", handlers[1].entrypoint().unwrap());
         assert_eq!("/birds/savage/rending", &handlers[1].route().unwrap());
         assert_eq!(0, handlers[1].files().len());
     }
@@ -290,6 +315,12 @@ mod test {
     }
 
     #[test]
+    fn test_external_refs_cannot_have_own_entrypoints() {
+        let facts = HippoFacts::read_from("./testdata/external_bad/HIPPOFACTS");
+        assert!(facts.is_err());
+    }
+
+    #[test]
     fn test_parse_exports() {
         let facts =
             HippoFacts::read_from("./testdata/lib1/HIPPOFACTS").expect("error reading facts file");
@@ -302,6 +333,11 @@ mod test {
         assert_eq!("wasm/server.wasm", server_export.name().unwrap());
         assert_eq!("serve_all_the_things", server_export.export_id().unwrap());
         assert_eq!(0, server_export.files().len());
+
+        let gallery_export = &facts.entries[1];
+        assert_eq!("wasm/gallery.wasm", gallery_export.name().unwrap());
+        assert_eq!("serve_pix", gallery_export.entrypoint().unwrap());
+        assert_eq!(2, gallery_export.files().len());
     }
 
     #[test]

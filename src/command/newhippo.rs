@@ -81,6 +81,7 @@ impl super::CommandRunner for NewHippofacts {
         let modname = opts.value_of("module_name").unwrap_or("main.wasm");
         let handler = RawHandler {
             name: Some(modname.to_owned()),
+            entrypoint: None,
             route: "/".to_owned(),
             files: None,
             external: None,

@@ -25,11 +25,13 @@ files = ["photo/adelie.png", "photo/rockhopper.png", "stock/*.jpg"]
 [[handler]]
 route = "/birds/irritable/fighty"
 name = "bin/cassowary.wasm"
+# entrypoint key is optional
 # files key is optional
 
 [[handler]]
 route = "/birds/naughty"
 name = "bin/kea.wasm"
+entrypoint = "steal_wipers"
 files = ["stock/kea.jpg", "stock/wipers.jpg"]
 ```
 
@@ -84,7 +86,8 @@ description = 'provides birds as a service'
 authors = ['Joan Q Programmer']
 
 # Parcels representing handler WASM modules have a `requires` attribute
-# and a `wagi.route` feature
+# and a `wagi.route` feature, and a `wagi.entrypoint` if specified in
+# the source spec
 
 [[parcel]]
 [parcel.label]
@@ -111,6 +114,7 @@ requires = ['bin/cassowary.wasm-files']
 sha256 = 'bab02c178882085bf20defd15c0e8971edd95488a1ecb4a6273e6afcfb3c4030'
 name = 'bin/kea.wasm'
 [parcel.label.feature.wagi]
+entrypoint = 'steal_wipers'
 file = 'false'
 route = '/birds/naughty'
 [parcel.conditions]
@@ -197,6 +201,7 @@ To do this:
   which HIPPOFACTS will refer to it - this decouples the reference from volatile details
   like parcel name or SHA.
 * Instead of a `name` in your `handler` table, you specify a `bindleId` and `handlerId`.
+* Do not specify an `entrypoint` - this is defined by the library parcel.
 
 For example:
 

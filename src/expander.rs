@@ -41,7 +41,7 @@ impl ExpansionContext {
                     .map(|s| format!("-{}", s))
                     .unwrap_or_else(|| "".to_owned());
                 let timestamp = chrono::Local::now()
-                    .format("-%Y.%m.%d.%H.%M.%S.%3f")
+                    .format("-%Y%m%d%H%M%S%3f")
                     .to_string();
                 format!("{}{}{}", version, user, timestamp)
             }
@@ -557,6 +557,7 @@ impl WagiFeatureProvider for Export {
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
+    use semver::Version;
 
     use super::*;
 
@@ -769,6 +770,14 @@ mod test {
     fn test_name_is_kept() {
         let invoice = expand_test_invoice("app1").unwrap();
         assert_eq!("weather", invoice.bindle.id.name());
+    }
+
+    #[test]
+    fn test_version_is_valid_semver() {
+        let invoice = expand_test_invoice("app1").unwrap();
+        assert!(
+            Version::parse(&invoice.bindle.id.version().to_string()).is_ok()
+        );
     }
 
     #[test]

@@ -41,6 +41,9 @@ impl ExpansionContext {
                     .map(|s| format!("-{}", s))
                     .unwrap_or_else(|| "".to_owned());
                 let timestamp = chrono::Local::now()
+                    // We format the timestamp without separators/subsections, in order
+                    // to avoid the possibility of a subsection leading with a zero, which
+                    // breaks semver compliance.
                     .format("-%Y%m%d%H%M%S%3f")
                     .to_string();
                 format!("{}{}{}", version, user, timestamp)
@@ -557,7 +560,6 @@ impl WagiFeatureProvider for Export {
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
-    use semver::Version;
 
     use super::*;
 
@@ -623,13 +625,18 @@ mod test {
     }
 
     fn expand_test_invoice(name: &str) -> anyhow::Result<Invoice> {
+       expand_test_invoice_per_versioning(name, InvoiceVersioning::Production)
+    }
+
+    fn expand_test_invoice_per_versioning(name: &str, invoice_versioning: InvoiceVersioning) -> anyhow::Result<Invoice> {
         let dir = test_dir(name);
         let hippofacts = read_hippofacts(dir.join("HIPPOFACTS")).unwrap();
         let expansion_context = ExpansionContext {
             relative_to: dir,
-            invoice_versioning: InvoiceVersioning::Production,
+            invoice_versioning: invoice_versioning,
             external_invoices: external_test_invoices(),
         };
+
         let (invoice, _) = expand(&hippofacts, &expansion_context)?.into();
         Ok(invoice)
     }
@@ -773,11 +780,64 @@ mod test {
     }
 
     #[test]
-    fn test_version_is_valid_semver() {
-        let invoice = expand_test_invoice("app1").unwrap();
-        assert!(
-            Version::parse(&invoice.bindle.id.version().to_string()).is_ok()
+    fn test_version_is_valid() {
+        use chrono::Datelike;
+        use semver::Version;
+
+        let current_user = current_user()
+            .map(|s| format!("{}", s))
+            .unwrap_or_else(|| "".to_owned());
+        let current_date = chrono::Local::now();
+        let year_month_day = format!(
+            "{}{}{}",
+            current_date.year(),
+            current_date.month(),
+            current_date.day(),
         );
+
+        let invoice = expand_test_invoice_per_versioning("app1", InvoiceVersioning::Dev).unwrap();
+        let version = &invoice.bindle.id.version().to_string();
+        assert!(
+            version.contains("1.2.3"),
+            "version should contain version as expressed in HIPPOFACTS"
+        );
+        assert!(
+            version.contains(&current_user),
+            "version should contain user name in prerelease info when InvoiceVersioning is Dev"
+        );
+        assert!(
+            version.contains(&year_month_day),
+            "version should contain timestamp in prerelease info when InvoiceVersioning is Dev"
+        );
+        assert!(
+            Version::parse(version).is_ok(),
+            "version should be valid semver"
+        );
+
+        let invoice = expand_test_invoice_per_versioning("app1", InvoiceVersioning::Production).unwrap();
+        let version = &invoice.bindle.id.version().to_string();
+        assert_eq!(
+            "1.2.3",
+            version,
+            "version should exactly match the value in HIPPOFACTS when InvoiceVersioning is Production"
+        );
+        assert!(
+            Version::parse(version).is_ok(),
+            "version should be valid semver"
+        );
+    }
+
+    #[test]
+    fn test_version_is_invalid() {
+        let invoice = expand_test_invoice("bad_version");
+        assert!(invoice.is_err());
+        if let Err(e) = invoice {
+            let message = format!("{}", e);
+            assert_eq!(
+                "Version 1.2.3.4 is not a valid semantic version (e.g. 1.2.3)",
+                message,
+            );
+        }
     }
 
     #[test]

@@ -781,33 +781,24 @@ mod test {
 
     #[test]
     fn test_version_is_valid() {
-        use chrono::Datelike;
+        use regex::Regex;
         use semver::Version;
+        use std::env;
 
-        let current_user = current_user()
-            .map(|s| format!("{}", s))
-            .unwrap_or_else(|| "".to_owned());
-        let current_date = chrono::Local::now();
-        let year_month_day = format!(
-            "{}{}{}",
-            current_date.year(),
-            current_date.month(),
-            current_date.day(),
-        );
+        env::set_var("USER", "foo");
 
         let invoice = expand_test_invoice_per_versioning("app1", InvoiceVersioning::Dev).unwrap();
         let version = &invoice.bindle.id.version().to_string();
+        // The dev version is expected to follow the format of
+        // <HIPPOFACTS bindle version>-<username>-<17-digit timestamp>
+        // For the HIPPOFACTS bindle version, we have it hardcoded to the value
+        // used in the 'app1' test app.
+        // For the username, we have it hardcoded to the environment variable's
+        // value set above.
+        let dev_version_re = Regex::new(r"^(1.2.3-foo-)[0-9]{17}$").unwrap();
         assert!(
-            version.contains("1.2.3"),
-            "version should contain version as expressed in HIPPOFACTS"
-        );
-        assert!(
-            version.contains(&current_user),
-            "version should contain user name in prerelease info when InvoiceVersioning is Dev"
-        );
-        assert!(
-            version.contains(&year_month_day),
-            "version should contain timestamp in prerelease info when InvoiceVersioning is Dev"
+            dev_version_re.is_match(version),
+            "version should match the expected regex when InvoiceVersioning is Dev"
         );
         assert!(
             Version::parse(version).is_ok(),

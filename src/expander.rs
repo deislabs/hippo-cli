@@ -41,7 +41,10 @@ impl ExpansionContext {
                     .map(|s| format!("-{}", s))
                     .unwrap_or_else(|| "".to_owned());
                 let timestamp = chrono::Local::now()
-                    .format("-%Y.%m.%d.%H.%M.%S.%3f")
+                    // We format the timestamp without separators/subsections, in order
+                    // to avoid the possibility of a subsection leading with a zero, which
+                    // breaks semver compliance.
+                    .format("-%Y%m%d%H%M%S%3f")
                     .to_string();
                 format!("{}{}{}", version, user, timestamp)
             }
@@ -622,13 +625,18 @@ mod test {
     }
 
     fn expand_test_invoice(name: &str) -> anyhow::Result<Invoice> {
+       expand_test_invoice_per_versioning(name, InvoiceVersioning::Production)
+    }
+
+    fn expand_test_invoice_per_versioning(name: &str, invoice_versioning: InvoiceVersioning) -> anyhow::Result<Invoice> {
         let dir = test_dir(name);
         let hippofacts = read_hippofacts(dir.join("HIPPOFACTS")).unwrap();
         let expansion_context = ExpansionContext {
             relative_to: dir,
-            invoice_versioning: InvoiceVersioning::Production,
+            invoice_versioning: invoice_versioning,
             external_invoices: external_test_invoices(),
         };
+
         let (invoice, _) = expand(&hippofacts, &expansion_context)?.into();
         Ok(invoice)
     }
@@ -769,6 +777,58 @@ mod test {
     fn test_name_is_kept() {
         let invoice = expand_test_invoice("app1").unwrap();
         assert_eq!("weather", invoice.bindle.id.name());
+    }
+
+    #[test]
+    fn test_version_is_valid() {
+        use regex::Regex;
+        use semver::Version;
+        use std::env;
+
+        env::set_var("USER", "foo");
+
+        let invoice = expand_test_invoice_per_versioning("app1", InvoiceVersioning::Dev).unwrap();
+        let version = &invoice.bindle.id.version().to_string();
+        // The dev version is expected to follow the format of
+        // <HIPPOFACTS bindle version>-<username>-<17-digit timestamp>
+        // For the HIPPOFACTS bindle version, we have it hardcoded to the value
+        // used in the 'app1' test app.
+        // For the username, we have it hardcoded to the environment variable's
+        // value set above.
+        let dev_version_re = Regex::new(r"^(1.2.3-foo-)[0-9]{17}$").unwrap();
+        assert!(
+            dev_version_re.is_match(version),
+            "version should match the expected regex when InvoiceVersioning is Dev"
+        );
+        assert!(
+            Version::parse(version).is_ok(),
+            "version should be valid semver"
+        );
+
+        let invoice = expand_test_invoice_per_versioning("app1", InvoiceVersioning::Production).unwrap();
+        let version = &invoice.bindle.id.version().to_string();
+        assert_eq!(
+            "1.2.3",
+            version,
+            "version should exactly match the value in HIPPOFACTS when InvoiceVersioning is Production"
+        );
+        assert!(
+            Version::parse(version).is_ok(),
+            "version should be valid semver"
+        );
+    }
+
+    #[test]
+    fn test_version_is_invalid() {
+        let invoice = expand_test_invoice("bad_version");
+        assert!(invoice.is_err());
+        if let Err(e) = invoice {
+            let message = format!("{}", e);
+            assert_eq!(
+                "Version 1.2.3.4 is not a valid semantic version (e.g. 1.2.3)",
+                message,
+            );
+        }
     }
 
     #[test]

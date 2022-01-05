@@ -268,7 +268,7 @@ fn expand_file_to_parcels(
     let paths = glob::glob(&expansion_context.to_absolute(pattern))?;
     let parcels = paths
         .into_iter()
-        .map(|p| try_convert_one_match_to_parcel(p, expansion_context, member_of))
+        .filter_map(|p| try_convert_one_match_to_parcel(p, expansion_context, member_of))
         .collect::<anyhow::Result<Vec<_>>>()?;
     let warned_parcels = if parcels.is_empty() {
         Warned::from((parcels, format!("No files matched pattern {}", pattern)))
@@ -282,19 +282,23 @@ fn try_convert_one_match_to_parcel(
     path: Result<PathBuf, GlobError>,
     expansion_context: &ExpansionContext,
     member_of: &str,
-) -> anyhow::Result<Parcel> {
+) -> Option<anyhow::Result<Parcel>> {
     match path {
-        Err(e) => Err(anyhow::anyhow!("Couldn't expand pattern: {}", e)),
+        Err(e) => Some(Err(anyhow::anyhow!("Couldn't expand pattern: {}", e))),
         Ok(path) => {
-            let features = vec![("file", "true")];
-            convert_one_match_to_parcel(
-                path,
-                expansion_context,
-                features,
-                None,
-                Some(member_of),
-                None,
-            )
+            if path.is_dir() {
+                None
+            } else {
+                let features = vec![("file", "true")];
+                Some(convert_one_match_to_parcel(
+                    path,
+                    expansion_context,
+                    features,
+                    None,
+                    Some(member_of),
+                    None,
+                ))
+            }
         }
     }
 }
@@ -970,6 +974,23 @@ mod test {
             .filter(|parcel| parcel.member_of("wasm/no-directory.wasm-files"))
             .count();
         assert_eq!(0, count);
+    }
+
+    #[test]
+    fn test_finds_assets_in_nested_subdirectories() {
+        let invoice = expand_test_invoice("nesttest").unwrap();
+        let assets = invoice
+            .parcel
+            .unwrap()
+            .iter()
+            .filter(|parcel| parcel.member_of("out/fake.wasm-files"))
+            .map(|parcel| parcel.label.name.clone())
+            .collect_vec();
+        assert_eq!(4, assets.len());
+        assert!(assets.contains(&"assets/scripts/justsome.json".to_owned()));
+        assert!(assets.contains(&"assets/scripts/real.js".to_owned()));
+        assert!(assets.contains(&"assets/styles/css/suspicious.css".to_owned()));
+        assert!(assets.contains(&"assets/styles/sass/iffy.sass".to_owned()));
     }
 
     #[test]

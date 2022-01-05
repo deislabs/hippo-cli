@@ -1,0 +1,8 @@
+[bindle]
+name = "weather"
+version = "1.2.3"
+
+[[handler]]
+name = "out/fake.wasm"
+route = "/"
+files = ["assets/**/*"]

@@ -1,15 +1,15 @@
-use std::path::{Path, PathBuf};
-
 use bindle::{Invoice, Parcel};
 
-use crate::bindle_utils::ParcelHelpers;
+use std::path::{Path, PathBuf};
 
-pub struct BindleWriter {
+use super::util::ParcelHelpers;
+
+pub struct Writer {
     source_base_path: PathBuf,
     dest_base_path: PathBuf,
 }
 
-impl BindleWriter {
+impl Writer {
     pub fn new(source_base_path: impl AsRef<Path>, dest_base_path: impl AsRef<Path>) -> Self {
         Self {
             source_base_path: source_base_path.as_ref().to_path_buf(),
@@ -29,11 +29,7 @@ impl BindleWriter {
         Ok(())
     }
 
-    async fn write_invoice_file(
-        &self,
-        invoice: &Invoice,
-        bindle_dir: &Path,
-    ) -> anyhow::Result<()> {
+    async fn write_invoice_file(&self, invoice: &Invoice, bindle_dir: &Path) -> anyhow::Result<()> {
         let invoice_text = toml::to_string_pretty(&invoice)?;
         let invoice_file = bindle_dir.join("invoice.toml");
         tokio::fs::write(&invoice_file, &invoice_text).await?;

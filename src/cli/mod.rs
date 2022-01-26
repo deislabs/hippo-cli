@@ -164,7 +164,7 @@ impl Cli {
                     api_key: None,
                 });
                 hippo_client.register(uname.clone(), pword).await?;
-                println!("Registered new account: {}", uname);
+                println!("Registered {}", uname);
             }
 
             Commands::Auth(AuthCommands::Login {

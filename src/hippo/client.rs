@@ -1,15 +1,16 @@
 use hippo_openapi::apis::account_api::{api_account_createtoken_post, api_account_post};
 use hippo_openapi::apis::app_api::{api_app_id_delete, api_app_post};
 use hippo_openapi::apis::certificate_api::{api_certificate_id_delete, api_certificate_post};
-use hippo_openapi::apis::channel_api::api_channel_id_delete;
+use hippo_openapi::apis::channel_api::{api_channel_id_delete, api_channel_post};
 use hippo_openapi::apis::configuration::{ApiKey, Configuration};
 use hippo_openapi::apis::environment_variable_api::{
     api_environmentvariable_id_delete, api_environmentvariable_post,
 };
 use hippo_openapi::apis::revision_api::api_revision_post;
 use hippo_openapi::models::{
-    CreateAccountCommand, CreateAppCommand, CreateCertificateCommand,
-    CreateEnvironmentVariableCommand, CreateTokenCommand, RegisterRevisionCommand, TokenInfo,
+    ChannelRevisionSelectionStrategy, CreateAccountCommand, CreateAppCommand,
+    CreateCertificateCommand, CreateChannelCommand, CreateEnvironmentVariableCommand,
+    CreateTokenCommand, RegisterRevisionCommand, TokenInfo,
 };
 
 use reqwest::header;
@@ -128,20 +129,32 @@ impl Client {
         Ok(())
     }
 
-    // TODO: https://github.com/deislabs/hippo/pull/389
-    // pub async fn add_channel(&self, app_id: String, name: String, domain: Option<String>, revision_selection_strategy: Option<ChannelRevisionSelectionStrategy>, range_rule: Option<String>, _active_revision_id: Option<String>, _certificate_id: Option<String>) -> anyhow::Result<String> {
-    //     let id = api_channel_post(&self.configuration, Some(CreateChannelCommand{
-    //         app_id: Some(app_id),
-    //         name: Some(name),
-    //         domain,
-    //         revision_selection_strategy,
-    //         range_rule,
-    //         active_revision_id,
-    //         certificate_id,
-    //     })).await?;
+    pub async fn add_channel(
+        &self,
+        app_id: String,
+        name: String,
+        domain: Option<String>,
+        revision_selection_strategy: Option<ChannelRevisionSelectionStrategy>,
+        range_rule: Option<String>,
+        active_revision_id: Option<String>,
+        certificate_id: Option<String>,
+    ) -> anyhow::Result<String> {
+        let id = api_channel_post(
+            &self.configuration,
+            Some(CreateChannelCommand {
+                app_id: Some(app_id),
+                name: Some(name),
+                domain,
+                revision_selection_strategy,
+                range_rule,
+                active_revision_id,
+                certificate_id,
+            }),
+        )
+        .await?;
 
-    //     Ok(id)
-    // }
+        Ok(id)
+    }
 
     pub async fn remove_channel(&self, id: String) -> anyhow::Result<()> {
         api_channel_id_delete(&self.configuration, &id).await?;

@@ -76,7 +76,7 @@ pub(crate) enum Commands {
 
         /// Where should the bindle be written to
         #[clap(short, long, parse(from_os_str), default_value = ".hippo")]
-        destination: PathBuf
+        destination: PathBuf,
     },
 
     /// Package and upload Hippo artifacts, notifying Hippo

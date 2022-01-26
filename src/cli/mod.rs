@@ -18,7 +18,7 @@ use crate::{
 use clap::Parser;
 use dialoguer::{Input, Password};
 use dirs::config_dir;
-use hippo_openapi::models::TokenInfo;
+use hippo_openapi::models::{ChannelRevisionSelectionStrategy, TokenInfo};
 use log::{warn, LevelFilter};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -240,11 +240,35 @@ impl Cli {
                 println!("Removed Certificate {}", id);
             }
 
-            Commands::Channel(ChannelCommands::Add {}) => {
-                todo!("https://github.com/deislabs/hippo/pull/389");
-                // let id = hippo_client.add_channel(name.to_owned(), storage_id.to_owned()).await?;
-                // println!("Added Channel {} (ID = '{}')", name, id);
-                // println!("IMPORTANT: save this Channel ID for later - you will need it to update and/or delete the Channel (for now)");
+            Commands::Channel(ChannelCommands::Add {
+                app_id,
+                name,
+                domain,
+                range_rule,
+                revision_id,
+                certificate_id,
+            }) => {
+                if range_rule.is_some() && revision_id.is_some() {
+                    anyhow::anyhow!("cannot specify both a range rule and a revision ID");
+                }
+                let revision_selection_strategy = match (range_rule, revision_id) {
+                    (Some(_), None) => Some(ChannelRevisionSelectionStrategy::_0),
+                    (None, Some(_)) => Some(ChannelRevisionSelectionStrategy::_1),
+                    _ => None, // Hippo will default to "use-range-rule" with a value of "*"
+                };
+                let id = hippo_client
+                    .add_channel(
+                        app_id.to_owned(),
+                        name.to_owned(),
+                        domain.to_owned(),
+                        revision_selection_strategy,
+                        range_rule.to_owned(),
+                        revision_id.to_owned(),
+                        certificate_id.to_owned(),
+                    )
+                    .await?;
+                println!("Added Channel {} (ID = '{}')", name, id);
+                println!("IMPORTANT: save this Channel ID for later - you will need it to update and/or delete the Channel (for now)");
             }
 
             Commands::Channel(ChannelCommands::Remove { id }) => {
@@ -338,7 +362,8 @@ impl Cli {
                 invoice_version,
             } => {
                 let destination = temp_dir().join("hippo-staging");
-                let invoice = prepare(path, invoice_version, &bindle_connection_info, &destination).await?;
+                let invoice =
+                    prepare(path, invoice_version, &bindle_connection_info, &destination).await?;
 
                 push_all(&destination, &invoice.bindle.id, &bindle_connection_info).await?;
                 println!("Pushed {}", &invoice.bindle.id);
@@ -347,11 +372,16 @@ impl Cli {
             Commands::Prepare {
                 path,
                 invoice_version,
-                destination
+                destination,
             } => {
-                let invoice = prepare(path, invoice_version, &bindle_connection_info, destination).await?;
+                let invoice =
+                    prepare(path, invoice_version, &bindle_connection_info, destination).await?;
 
-                println!("Wrote {} to {}", &invoice.bindle.id, destination.as_os_str().to_string_lossy());
+                println!(
+                    "Wrote {} to {}",
+                    &invoice.bindle.id,
+                    destination.as_os_str().to_string_lossy()
+                );
             }
 
             Commands::Push {
@@ -359,7 +389,8 @@ impl Cli {
                 invoice_version,
             } => {
                 let destination = temp_dir().join("hippo-staging");
-                let invoice = prepare(path, invoice_version, &bindle_connection_info, &destination).await?;
+                let invoice =
+                    prepare(path, invoice_version, &bindle_connection_info, &destination).await?;
 
                 push_all(&destination, &invoice.bindle.id, &bindle_connection_info).await?;
                 hippo_client
@@ -377,20 +408,23 @@ impl Cli {
     }
 }
 
-async fn prepare(path: &PathBuf, invoice_version: &String, bindle_connection_info: &BindleConnectionInfo, destination: &PathBuf) -> Result<bindle::Invoice, anyhow::Error> {
+async fn prepare(
+    path: &PathBuf,
+    invoice_version: &String,
+    bindle_connection_info: &BindleConnectionInfo,
+    destination: &PathBuf,
+) -> Result<bindle::Invoice, anyhow::Error> {
     let path = current_dir()?.join(path);
     let invoice_versioning = InvoiceVersioning::parse(invoice_version)?;
     let hippofacts_filepath = hippofacts_file_path(path.to_path_buf())?;
     let spec = HippoFacts::read_from(hippofacts_filepath)?;
-    let external_invoices =
-        prefetch_required_invoices(&spec, Some(bindle_connection_info)).await?;
+    let external_invoices = prefetch_required_invoices(&spec, Some(bindle_connection_info)).await?;
     let expansion_context = ExpansionContext {
         relative_to: path.clone(),
         invoice_versioning,
         external_invoices,
     };
-    let (invoice, warnings) =
-        crate::expander::expand(&spec, &expansion_context)?.into();
+    let (invoice, warnings) = crate::expander::expand(&spec, &expansion_context)?.into();
     for warning in &warnings {
         warn!("{}", warning);
     }

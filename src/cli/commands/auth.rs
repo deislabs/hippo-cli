@@ -43,6 +43,6 @@ pub(crate) enum Commands {
     /// End the current login session
     Logout {},
 
-    /// prints the logged in user.
+    /// prints the logged in user
     Whoami {},
 }

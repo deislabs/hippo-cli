@@ -58,7 +58,7 @@ pub(crate) enum Commands {
         invoice_version: String,
     },
 
-    /// Prepare a bindle, but write it to disk instead of sending it over the network.
+    /// Prepare a bindle, but write it to disk instead of sending it over the network
     #[clap(setting(AppSettings::ArgRequiredElseHelp))]
     Prepare {
         /// The artifacts spec (file or directory containing HIPPOFACTS file)

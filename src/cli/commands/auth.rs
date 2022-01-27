@@ -5,6 +5,7 @@ pub(crate) enum Commands {
     /// Create a new Hippo account
     Register {
         /// The Hippo URL
+        #[clap(long, default_value = "https://localhost:5309")]
         url: String,
         /// The username
         #[clap(long)]
@@ -20,6 +21,7 @@ pub(crate) enum Commands {
     /// Log into Hippo
     Login {
         /// The URL to log into Bindle
+        #[clap(long, default_value = "http://localhost:8080/v1")]
         bindle_url: String,
         /// The username to log into Bindle
         #[clap(long)]
@@ -28,6 +30,7 @@ pub(crate) enum Commands {
         #[clap(long)]
         bindle_password: Option<String>,
         /// The URL to log into Hippo
+        #[clap(long, default_value = "https://localhost:5309")]
         hippo_url: String,
         /// The username to log into Hippo
         #[clap(long)]

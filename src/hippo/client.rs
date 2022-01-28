@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use hippo_openapi::apis::account_api::{api_account_createtoken_post, api_account_post};
 use hippo_openapi::apis::app_api::{api_app_id_delete, api_app_post};
 use hippo_openapi::apis::certificate_api::{api_certificate_id_delete, api_certificate_post};
@@ -15,6 +17,8 @@ use hippo_openapi::models::{
 };
 
 use reqwest::header;
+use serde::Deserialize;
+
 
 const JSON_MIME_TYPE: &str = "application/json";
 
@@ -185,9 +189,20 @@ impl Client {
     }
 }
 
+#[derive(Deserialize, Debug)]
+struct ValidationExceptionMessage {
+    title: String,
+    errors: HashMap<String, Vec<String>>
+}
+
 fn format_response_error<T>(e: Error<T>) -> anyhow::Error {
     match e {
-        Error::ResponseError(r) => anyhow::anyhow!(r.content),
+        Error::ResponseError(r) => {
+            match serde_json::from_str::<ValidationExceptionMessage>(&r.content) {
+                Ok(m) => anyhow::anyhow!("{} {:?}", m.title, m.errors),
+                _ => anyhow::anyhow!(r.content)
+            }
+        },
         _ => anyhow::anyhow!(e.to_string())
     }
 }

@@ -187,7 +187,7 @@ impl Client {
 
 fn format_response_error<T>(e: Error<T>) -> anyhow::Error {
     match e {
-        Error::ResponseError(e) => anyhow::anyhow!(e.content),
+        Error::ResponseError(r) => anyhow::anyhow!(r.content),
         _ => anyhow::anyhow!(e.to_string())
     }
 }

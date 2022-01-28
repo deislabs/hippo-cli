@@ -7,6 +7,7 @@ use hippo_openapi::apis::environment_variable_api::{
     api_environmentvariable_id_delete, api_environmentvariable_post,
 };
 use hippo_openapi::apis::revision_api::api_revision_post;
+use hippo_openapi::apis::Error;
 use hippo_openapi::models::{
     ChannelRevisionSelectionStrategy, CreateAccountCommand, CreateAppCommand,
     CreateCertificateCommand, CreateChannelCommand, CreateEnvironmentVariableCommand,
@@ -60,7 +61,7 @@ impl Client {
     }
 
     pub async fn register(&self, username: String, password: String) -> anyhow::Result<String> {
-        let id = api_account_post(
+        api_account_post(
             &self.configuration,
             Some(CreateAccountCommand {
                 user_name: Some(username),
@@ -68,40 +69,33 @@ impl Client {
                 password_confirm: Some(password),
             }),
         )
-        .await?;
-
-        Ok(id)
+        .await.map_err(format_response_error)
     }
 
     pub async fn login(&self, username: String, password: String) -> anyhow::Result<TokenInfo> {
-        let token = api_account_createtoken_post(
+        api_account_createtoken_post(
             &self.configuration,
             Some(CreateTokenCommand {
                 user_name: Some(username),
                 password: Some(password),
             }),
         )
-        .await?;
-
-        Ok(token)
+        .await.map_err(format_response_error)
     }
 
     pub async fn add_app(&self, name: String, storage_id: String) -> anyhow::Result<String> {
-        let id = api_app_post(
+        api_app_post(
             &self.configuration,
             Some(CreateAppCommand {
                 name: Some(name),
                 storage_id: Some(storage_id),
             }),
         )
-        .await?;
-
-        Ok(id)
+        .await.map_err(format_response_error)
     }
 
     pub async fn remove_app(&self, id: String) -> anyhow::Result<()> {
-        api_app_id_delete(&self.configuration, &id).await?;
-        Ok(())
+        api_app_id_delete(&self.configuration, &id).await.map_err(format_response_error)
     }
 
     pub async fn add_certificate(
@@ -110,7 +104,7 @@ impl Client {
         public_key: String,
         private_key: String,
     ) -> anyhow::Result<String> {
-        let id = api_certificate_post(
+        api_certificate_post(
             &self.configuration,
             Some(CreateCertificateCommand {
                 name: Some(name),
@@ -118,15 +112,11 @@ impl Client {
                 private_key: Some(private_key),
             }),
         )
-        .await?;
-
-        Ok(id)
+        .await.map_err(format_response_error)
     }
 
     pub async fn remove_certificate(&self, id: String) -> anyhow::Result<()> {
-        api_certificate_id_delete(&self.configuration, &id).await?;
-
-        Ok(())
+        api_certificate_id_delete(&self.configuration, &id).await.map_err(format_response_error)
     }
 
     pub async fn add_channel(
@@ -139,7 +129,7 @@ impl Client {
         active_revision_id: Option<String>,
         certificate_id: Option<String>,
     ) -> anyhow::Result<String> {
-        let id = api_channel_post(
+        api_channel_post(
             &self.configuration,
             Some(CreateChannelCommand {
                 app_id: Some(app_id),
@@ -151,15 +141,11 @@ impl Client {
                 certificate_id,
             }),
         )
-        .await?;
-
-        Ok(id)
+        .await.map_err(format_response_error)
     }
 
     pub async fn remove_channel(&self, id: String) -> anyhow::Result<()> {
-        api_channel_id_delete(&self.configuration, &id).await?;
-
-        Ok(())
+        api_channel_id_delete(&self.configuration, &id).await.map_err(format_response_error)
     }
 
     pub async fn add_environment_variable(
@@ -168,7 +154,7 @@ impl Client {
         value: String,
         channel_id: String,
     ) -> anyhow::Result<String> {
-        let id = api_environmentvariable_post(
+        api_environmentvariable_post(
             &self.configuration,
             Some(CreateEnvironmentVariableCommand {
                 key: Some(key),
@@ -176,15 +162,11 @@ impl Client {
                 channel_id: Some(channel_id),
             }),
         )
-        .await?;
-
-        Ok(id)
+        .await.map_err(format_response_error)
     }
 
     pub async fn remove_environment_variable(&self, id: String) -> anyhow::Result<()> {
-        api_environmentvariable_id_delete(&self.configuration, &id).await?;
-
-        Ok(())
+        api_environmentvariable_id_delete(&self.configuration, &id).await.map_err(format_response_error)
     }
 
     pub async fn add_revision(
@@ -199,8 +181,13 @@ impl Client {
                 revision_number: Some(revision_number),
             }),
         )
-        .await?;
+        .await.map_err(format_response_error)
+    }
+}
 
-        Ok(())
+fn format_response_error<T>(e: Error<T>) -> anyhow::Error {
+    match e {
+        Error::ResponseError(e) => anyhow::anyhow!(e.content),
+        _ => anyhow::anyhow!(e.to_string())
     }
 }

@@ -35,7 +35,10 @@ impl WarnContext {
     pub fn run<T, E>(action: impl Fn(&mut Self) -> Result<T, E>) -> Result<Warned<T>, E> {
         let mut wc = Self { warnings: vec![] };
         let t = action(&mut wc)?;
-        Ok(Warned { value: t, warnings: wc.warnings })
+        Ok(Warned {
+            value: t,
+            warnings: wc.warnings,
+        })
     }
 }
 

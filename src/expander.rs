@@ -8,8 +8,10 @@ use glob::GlobError;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
-use crate::bindle_utils::InvoiceHelpers;
-use crate::hippofacts::{Export, ExternalHandler, ExternalRef, HippoFacts, HippoFactsEntry, LocalHandler};
+use crate::bindle::util::InvoiceHelpers;
+use crate::hippofacts::{
+    Export, ExternalHandler, ExternalRef, HippoFacts, HippoFactsEntry, LocalHandler,
+};
 use crate::warnings::{Unwarn, WarnContext, Warned};
 
 pub struct ExpansionContext {
@@ -65,7 +67,9 @@ impl InvoiceVersioning {
         } else if text == "development" || text == "dev" {
             Ok(InvoiceVersioning::Dev)
         } else {
-            Err(anyhow::anyhow!("Invalid invoice versioning strategy: choose 'dev' or 'production'"))
+            Err(anyhow::anyhow!(
+                "Invalid invoice versioning strategy: choose 'dev' or 'production'"
+            ))
         }
     }
 }
@@ -629,10 +633,13 @@ mod test {
     }
 
     fn expand_test_invoice(name: &str) -> anyhow::Result<Invoice> {
-       expand_test_invoice_per_versioning(name, InvoiceVersioning::Production)
+        expand_test_invoice_per_versioning(name, InvoiceVersioning::Production)
     }
 
-    fn expand_test_invoice_per_versioning(name: &str, invoice_versioning: InvoiceVersioning) -> anyhow::Result<Invoice> {
+    fn expand_test_invoice_per_versioning(
+        name: &str,
+        invoice_versioning: InvoiceVersioning,
+    ) -> anyhow::Result<Invoice> {
         let dir = test_dir(name);
         let hippofacts = read_hippofacts(dir.join("HIPPOFACTS")).unwrap();
         let expansion_context = ExpansionContext {
@@ -809,7 +816,8 @@ mod test {
             "version should be valid semver"
         );
 
-        let invoice = expand_test_invoice_per_versioning("app1", InvoiceVersioning::Production).unwrap();
+        let invoice =
+            expand_test_invoice_per_versioning("app1", InvoiceVersioning::Production).unwrap();
         let version = &invoice.bindle.id.version().to_string();
         assert_eq!(
             "1.2.3",
@@ -1072,7 +1080,10 @@ mod test {
 
         match exported_parcel.label.feature.as_ref() {
             None => assert!(false, "No features on the exported parcel"),
-            Some(map) => assert_eq!("serve_pix", map.get("wagi").unwrap().get("entrypoint").unwrap()),
+            Some(map) => assert_eq!(
+                "serve_pix",
+                map.get("wagi").unwrap().get("entrypoint").unwrap()
+            ),
         };
     }
 

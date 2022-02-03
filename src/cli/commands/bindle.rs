@@ -42,16 +42,16 @@ pub(crate) enum Commands {
     /// Log into Bindle
     Login {
         /// The URL to log into Bindle
-        #[clap(long, default_value = "http://localhost:8080/v1")]
+        #[clap(env = "BINDLE_URL", long, default_value = "http://localhost:8080/v1")]
         url: String,
         /// The username to log into Bindle
-        #[clap(long)]
+        #[clap(env = "BINDLE_USERNAME", long)]
         username: Option<String>,
         /// The password to log into Bindle
-        #[clap(long)]
+        #[clap(env = "BINDLE_PASSWORD", long)]
         password: Option<String>,
         /// Should invalid TLS certificates be accepted by the client?
-        #[clap(short = 'k', long)]
+        #[clap(env, short = 'k', long)]
         danger_accept_invalid_certs: bool,
     },
 

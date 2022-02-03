@@ -14,36 +14,27 @@ pub(crate) enum Commands {
         #[clap(long)]
         password: Option<String>,
         /// Should invalid TLS certificates be accepted by the client?
-        #[clap(long)]
+        #[clap(short = 'k', long)]
         danger_accept_invalid_certs: bool,
     },
 
     /// Log into Hippo
     Login {
-        /// The URL to log into Bindle
-        #[clap(long, default_value = "http://localhost:8080/v1")]
-        bindle_url: String,
-        /// The username to log into Bindle
-        #[clap(long)]
-        bindle_username: Option<String>,
-        /// The password to log into Bindle
-        #[clap(long)]
-        bindle_password: Option<String>,
         /// The URL to log into Hippo
         #[clap(long, default_value = "https://localhost:5309")]
-        hippo_url: String,
+        url: String,
         /// The username to log into Hippo
         #[clap(long)]
-        hippo_username: Option<String>,
+        username: Option<String>,
         /// The password to log into Hippo
         #[clap(long)]
-        hippo_password: Option<String>,
+        password: Option<String>,
         /// Should invalid TLS certificates be accepted by the client?
-        #[clap(long)]
+        #[clap(short = 'k', long)]
         danger_accept_invalid_certs: bool,
     },
 
-    /// End the current login session
+    /// End the current Hippo login session
     Logout {},
 
     /// prints the logged in user

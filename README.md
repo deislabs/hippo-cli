@@ -247,27 +247,36 @@ assemble all matching files and publish them as a bindle. In this mode,
 * Pushes to the Bindle server
 * Notifies Hippo that a new bindle version is available
 
-The Bindle server is specified in the `BINDLE_URL` environment variable.
-(If you don't want to set the environment variable, pass the `-s` argument with the URL.)
-If the Bindle server requires authentication, specify this via the `BINDLE_USERNAME`
-and `BINDLE_PASSWORD` environment variables (or `--bindle-username` and `--bindle-password`
-options). Note that Bindle authentication is independent of Hippo authentication!
+Authentication is handled through two commands:
 
-The Hippo URL is specified in the `HIPPO_URL` environment variable. Hippo
-requires authentication: pass the username in `HIPPO_USERNAME` and the password in
-`HIPPO_PASSWORD`. (The equivalent command line options are `--hippo-url`, `--hippo-username`
-and `--hippo-password`.)
+- `hippo auth login`, which logs into Hippo
+- `hippo bindle login`, which logs into Bindle
 
-If you want to review the proposed bindle rather than pushing it, pass `hippo prepare -d <staging_dir> .`.
-This will stage the bindle to the specified directory but _not_ push it. If you want to push the
-generated bindle but not notify Hippo, use `hippo bindle .`.
+With `hippo auth login`, the Hippo URL is specified in the `--url` flag. Hippo requires authentication:
+if `--username` or `--password` are not provided, the CLI will prompt for that information.
+
+With `hippo bindle login`, the Bindle server is specified with the `--url` flag. If the Bindle server
+requires authentication, specify this via the `--username` and `--password` options. Note that Bindle
+authentication is independent of Hippo authentication, and in some cases (e.g. if `bindle-server` is
+provided the `--unauthenticated` flag), no authentication is necessary!
+
+If you want to review the proposed bindle rather than pushing it, pass
+`hippo bindle prepare -d <staging_dir> .`. This will stage the bindle to the specified directory but
+_not_ push it. If you want to push the generated bindle but not notify Hippo, use
+`hippo bindle push .`.
 
 In a CI environment you can supply the `-v production` option to suppress version mangling.
 This will create and upload the bindle with the version from `HIPPOFACTS`, without the
 prerelease segment.
 
-If you want to skip server verification, pass the `-k` flag. This can be useful if you are running
-development services with self-signed certificates. **This is a security risk: do not use it in production.**
+If you want to skip server TLS verification, pass the `-k` flag to either `login` command. This can be
+useful if you are running development services with self-signed certificates.
+**This is a security risk: do not use it in production.**
+
+Logging out can be performed with
+
+- `hippo auth logout`, which logs out of Hippo
+- `hippo bindle logout`, which logs out of Bindle
 
 ## Building from source
 

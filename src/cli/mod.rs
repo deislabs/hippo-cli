@@ -252,9 +252,9 @@ impl Cli {
                     anyhow::anyhow!("cannot specify both a range rule and a revision ID");
                 }
                 let revision_selection_strategy = match (range_rule, revision_id) {
-                    (Some(_), None) => Some(ChannelRevisionSelectionStrategy::_0),
-                    (None, Some(_)) => Some(ChannelRevisionSelectionStrategy::_1),
-                    _ => None, // Hippo will default to "use-range-rule" with a value of "*"
+                    (Some(_), None) => ChannelRevisionSelectionStrategy::_0,
+                    (None, Some(_)) => ChannelRevisionSelectionStrategy::_1,
+                    _ => ChannelRevisionSelectionStrategy::_0
                 };
                 let id = hippo_client
                     .add_channel(

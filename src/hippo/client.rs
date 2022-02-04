@@ -68,9 +68,9 @@ impl Client {
         api_account_post(
             &self.configuration,
             Some(CreateAccountCommand {
-                user_name: Some(username),
-                password: Some(password.clone()),
-                password_confirm: Some(password),
+                user_name: username,
+                password: password.clone(),
+                password_confirm: password,
             }),
         )
         .await.map_err(format_response_error)
@@ -80,8 +80,8 @@ impl Client {
         api_account_createtoken_post(
             &self.configuration,
             Some(CreateTokenCommand {
-                user_name: Some(username),
-                password: Some(password),
+                user_name: username,
+                password: password,
             }),
         )
         .await.map_err(format_response_error)
@@ -91,8 +91,8 @@ impl Client {
         api_app_post(
             &self.configuration,
             Some(CreateAppCommand {
-                name: Some(name),
-                storage_id: Some(storage_id),
+                name: name,
+                storage_id: storage_id,
             }),
         )
         .await.map_err(format_response_error)
@@ -111,9 +111,9 @@ impl Client {
         api_certificate_post(
             &self.configuration,
             Some(CreateCertificateCommand {
-                name: Some(name),
-                public_key: Some(public_key),
-                private_key: Some(private_key),
+                name: name,
+                public_key: public_key,
+                private_key: private_key,
             }),
         )
         .await.map_err(format_response_error)
@@ -128,7 +128,7 @@ impl Client {
         app_id: String,
         name: String,
         domain: Option<String>,
-        revision_selection_strategy: Option<ChannelRevisionSelectionStrategy>,
+        revision_selection_strategy: ChannelRevisionSelectionStrategy,
         range_rule: Option<String>,
         active_revision_id: Option<String>,
         certificate_id: Option<String>,
@@ -136,8 +136,8 @@ impl Client {
         api_channel_post(
             &self.configuration,
             Some(CreateChannelCommand {
-                app_id: Some(app_id),
-                name: Some(name),
+                app_id: app_id,
+                name: name,
                 domain,
                 revision_selection_strategy,
                 range_rule,
@@ -161,9 +161,9 @@ impl Client {
         api_environmentvariable_post(
             &self.configuration,
             Some(CreateEnvironmentVariableCommand {
-                key: Some(key),
-                value: Some(value),
-                channel_id: Some(channel_id),
+                key: key,
+                value: value,
+                channel_id: channel_id,
             }),
         )
         .await.map_err(format_response_error)
@@ -181,8 +181,8 @@ impl Client {
         api_revision_post(
             &self.configuration,
             Some(RegisterRevisionCommand {
-                app_storage_id: Some(app_storage_id),
-                revision_number: Some(revision_number),
+                app_storage_id: app_storage_id,
+                revision_number: revision_number,
             }),
         )
         .await.map_err(format_response_error)

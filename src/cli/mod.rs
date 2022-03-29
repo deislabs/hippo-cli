@@ -2,6 +2,7 @@ mod commands;
 
 use commands::{
     app::Commands as AppCommands, auth::Commands as AuthCommands,
+    bindle::Commands as BindleCommands,
     certificate::Commands as CertificateCommands, channel::Commands as ChannelCommands,
     environment_variable::Commands as EnvCommands, new::Commands as NewCommands,
     revision::Commands as RevisionCommands, Commands,
@@ -40,26 +41,39 @@ in which you are running the 'hippo' command.
 "#;
 
 #[derive(Serialize, Deserialize)]
-struct Config {
-    bindle_url: String,
-    bindle_username: Option<String>,
-    bindle_password: Option<String>,
+struct HippoConfig {
     danger_accept_invalid_certs: bool,
-    hippo_token_info: Option<TokenInfo>,
-    hippo_username: String,
-    hippo_url: String,
+    token_info: Option<TokenInfo>,
+    username: String,
+    url: String,
 }
 
-impl Default for Config {
+impl Default for HippoConfig {
     fn default() -> Self {
         Self {
-            bindle_url: "http://localhost:8080/v1".to_owned(),
-            bindle_username: None,
-            bindle_password: None,
             danger_accept_invalid_certs: false,
-            hippo_token_info: None,
-            hippo_username: "".to_owned(),
-            hippo_url: "https://localhost:5309".to_owned(),
+            token_info: None,
+            username: "".to_owned(),
+            url: "https://localhost:5309".to_owned(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct BindleConfig {
+    danger_accept_invalid_certs: bool,
+    username: Option<String>,
+    password: Option<String>,
+    url: String,
+}
+
+impl Default for BindleConfig {
+    fn default() -> Self {
+        Self {
+            url: "http://localhost:8080/v1".to_owned(),
+            username: None,
+            password: None,
+            danger_accept_invalid_certs: false,
         }
     }
 }
@@ -83,22 +97,38 @@ pub struct Cli {
 
 impl Cli {
     pub async fn execute(&self) -> anyhow::Result<()> {
-        let config_path = match &self.config {
+        let hippo_config_path = match &self.config {
             Some(p) => p.clone(),
             None => PathBuf::from(
                 config_dir()
-                    .map(|h| h.join("hippo").join("config.json"))
+                    .map(|h| h.join("hippo").join("hippo.json"))
+                    .unwrap(),
+            ),
+        };
+
+        let bindle_config_path = match &self.config {
+            Some(p) => p.clone(),
+            None => PathBuf::from(
+                config_dir()
+                    .map(|h| h.join("hippo").join("bindle.json"))
                     .unwrap(),
             ),
         };
 
         // TODO: switch from std::fs to tokio::fs once serde_json implements tokio support
         // https://github.com/serde-rs/json/issues/316
-        let mut conf: Config = Default::default();
-        if config_path.exists() {
-            let file = File::open(config_path.clone())?;
+        let mut hippo_conf: HippoConfig = Default::default();
+        if hippo_config_path.exists() {
+            let file = File::open(hippo_config_path.clone())?;
             let reader = BufReader::new(file);
-            conf = serde_json::from_reader(reader)?;
+            hippo_conf = serde_json::from_reader(reader)?;
+        }
+
+        let mut bindle_conf: BindleConfig = Default::default();
+        if bindle_config_path.exists() {
+            let file = File::open(bindle_config_path.clone())?;
+            let reader = BufReader::new(file);
+            bindle_conf = serde_json::from_reader(reader)?;
         }
 
         let mut builder = env_logger::builder();
@@ -115,16 +145,16 @@ impl Cli {
         builder.init();
 
         let hippo_client = Client::new(ConnectionInfo {
-            url: conf.hippo_url,
-            danger_accept_invalid_certs: conf.danger_accept_invalid_certs,
-            api_key: conf.hippo_token_info.map_or(None, |t| t.token),
+            url: hippo_conf.url,
+            danger_accept_invalid_certs: hippo_conf.danger_accept_invalid_certs,
+            api_key: hippo_conf.token_info.map_or(None, |t| t.token),
         });
 
         let bindle_connection_info = BindleConnectionInfo::new(
-            conf.bindle_url,
-            conf.danger_accept_invalid_certs,
-            conf.bindle_username,
-            conf.bindle_password,
+            bindle_conf.url,
+            bindle_conf.danger_accept_invalid_certs,
+            bindle_conf.username,
+            bindle_conf.password,
         );
 
         match &self.command {
@@ -168,56 +198,97 @@ impl Cli {
             }
 
             Commands::Auth(AuthCommands::Login {
-                bindle_url,
-                bindle_username,
-                bindle_password,
-                hippo_url,
-                hippo_username,
-                hippo_password,
+                url,
+                username,
+                password,
                 danger_accept_invalid_certs,
             }) => {
-                let h_username: String = match hippo_username {
+                let h_username: String = match username {
                     Some(u) => u.to_owned(),
                     None => Input::new()
                         .with_prompt("Enter Hippo username")
                         .interact_text()?,
                 };
-                let h_password: String = match hippo_password {
+                let h_password: String = match password {
                     Some(p) => p.to_owned(),
                     None => Password::new()
                         .with_prompt("Enter Hippo password")
                         .interact()?,
                 };
                 let hippo_client = Client::new(ConnectionInfo {
-                    url: hippo_url.to_owned(),
+                    url: url.to_owned(),
                     danger_accept_invalid_certs: *danger_accept_invalid_certs,
                     api_key: None,
                 });
                 let token = hippo_client.login(h_username.clone(), h_password).await?;
-                conf.danger_accept_invalid_certs = *danger_accept_invalid_certs;
-                conf.hippo_username = h_username;
-                conf.hippo_url = hippo_url.to_owned();
-                conf.hippo_token_info = Some(token);
-                conf.bindle_url = bindle_url.to_owned();
-                conf.bindle_username = bindle_username.to_owned();
-                conf.bindle_password = bindle_password.to_owned();
-                if !config_path.exists() && config_path.ancestors().count() != 0 {
-                    fs::create_dir_all(config_path.parent().unwrap())?;
+                hippo_conf.danger_accept_invalid_certs = *danger_accept_invalid_certs;
+                hippo_conf.username = h_username;
+                hippo_conf.url = url.to_owned();
+                hippo_conf.token_info = Some(token);
+                if !hippo_config_path.exists() && hippo_config_path.ancestors().count() != 0 {
+                    fs::create_dir_all(hippo_config_path.parent().unwrap())?;
                 }
-                serde_json::to_writer(File::create(config_path)?, &conf)?;
-                println!("Logged in as {}", conf.hippo_username);
+                serde_json::to_writer(File::create(hippo_config_path)?, &hippo_conf)?;
+                println!("Logged in as {}", hippo_conf.username);
             }
 
             Commands::Auth(AuthCommands::Logout {}) => {
-                conf = Default::default();
-                if !config_path.exists() && config_path.ancestors().count() != 0 {
-                    fs::create_dir_all(config_path.parent().unwrap())?;
+                hippo_conf = Default::default();
+                if !hippo_config_path.exists() && hippo_config_path.ancestors().count() != 0 {
+                    fs::create_dir_all(hippo_config_path.parent().unwrap())?;
                 }
-                serde_json::to_writer(File::create(config_path)?, &conf)?;
+                serde_json::to_writer(File::create(hippo_config_path)?, &hippo_conf)?;
             }
 
             Commands::Auth(AuthCommands::Whoami {}) => {
-                println!("{}", conf.hippo_username);
+                println!("{}", hippo_conf.username);
+            }
+
+            Commands::Bindle(BindleCommands::Login { url, username, password, danger_accept_invalid_certs }) => {
+                bindle_conf.danger_accept_invalid_certs = *danger_accept_invalid_certs;
+                bindle_conf.username = username.to_owned();
+                bindle_conf.password = password.to_owned();
+                bindle_conf.url = url.to_owned();
+                if !bindle_config_path.exists() && bindle_config_path.ancestors().count() != 0 {
+                    fs::create_dir_all(bindle_config_path.parent().unwrap())?;
+                }
+                serde_json::to_writer(File::create(&bindle_config_path)?, &bindle_conf)?;
+                println!("Configuration written to {}", bindle_config_path.as_path().to_string_lossy());
+            }
+
+            Commands::Bindle(BindleCommands::Logout {}) => {
+                bindle_conf = Default::default();
+                if !bindle_config_path.exists() && bindle_config_path.ancestors().count() != 0 {
+                    fs::create_dir_all(bindle_config_path.parent().unwrap())?;
+                }
+                serde_json::to_writer(File::create(bindle_config_path)?, &bindle_conf)?;
+            }
+
+            Commands::Bindle(BindleCommands::Prepare {
+                path,
+                invoice_version,
+                destination,
+            }) => {
+                let invoice =
+                    prepare(path, invoice_version, &bindle_connection_info, destination).await?;
+
+                println!(
+                    "Wrote {} to {}",
+                    &invoice.bindle.id,
+                    destination.as_os_str().to_string_lossy()
+                );
+            }
+
+            Commands::Bindle(BindleCommands::Push {
+                path,
+                invoice_version,
+            }) => {
+                let destination = temp_dir().join("hippo-staging");
+                let invoice =
+                    prepare(path, invoice_version, &bindle_connection_info, &destination).await?;
+
+                push_all(&destination, &invoice.bindle.id, &bindle_connection_info).await?;
+                println!("Pushed {}", &invoice.bindle.id);
             }
 
             Commands::Certificate(CertificateCommands::Add {
@@ -355,33 +426,6 @@ impl Cli {
                     .add_revision(app_storage_id.to_owned(), revision_number.to_owned())
                     .await?;
                 println!("Added Revision {}", revision_number);
-            }
-
-            Commands::Bindle {
-                path,
-                invoice_version,
-            } => {
-                let destination = temp_dir().join("hippo-staging");
-                let invoice =
-                    prepare(path, invoice_version, &bindle_connection_info, &destination).await?;
-
-                push_all(&destination, &invoice.bindle.id, &bindle_connection_info).await?;
-                println!("Pushed {}", &invoice.bindle.id);
-            }
-
-            Commands::Prepare {
-                path,
-                invoice_version,
-                destination,
-            } => {
-                let invoice =
-                    prepare(path, invoice_version, &bindle_connection_info, destination).await?;
-
-                println!(
-                    "Wrote {} to {}",
-                    &invoice.bindle.id,
-                    destination.as_os_str().to_string_lossy()
-                );
             }
 
             Commands::Push {

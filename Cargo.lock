@@ -710,9 +710,9 @@ dependencies = [
 
 [[package]]
 name = "hippo-openapi"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fce1eab13ca32d0f28d78c6592094a0ceefed872eb1895c78bb3c7c83bb8890a"
+checksum = "ccdd4ea8f4de601a7a88363fef1b19dea97c69f13d292aa96872f3220cc92cf2"
 dependencies = [
  "reqwest",
  "serde",

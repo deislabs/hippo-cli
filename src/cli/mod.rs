@@ -206,13 +206,13 @@ impl Cli {
                 let h_username: String = match username {
                     Some(u) => u.to_owned(),
                     None => Input::new()
-                        .with_prompt("Enter Hippo username")
+                        .with_prompt("Enter username")
                         .interact_text()?,
                 };
                 let h_password: String = match password {
                     Some(p) => p.to_owned(),
                     None => Password::new()
-                        .with_prompt("Enter Hippo password")
+                        .with_prompt("Enter password")
                         .interact()?,
                 };
                 let hippo_client = Client::new(ConnectionInfo {

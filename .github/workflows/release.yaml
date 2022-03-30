@@ -59,7 +59,7 @@ jobs:
           zip -r hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.zip README.md LICENSE hippo${{ matrix.config.extension }}
           shasum -a 256 *.tar.gz *.zip > checksums-${{ env.RELEASE_VERSION }}.txt
 
-      - uses: actions/upload-artifact@v1
+      - uses: actions/upload-artifact@v3
         with:
           name: hippo
           path: |

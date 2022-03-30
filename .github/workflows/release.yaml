@@ -63,14 +63,7 @@ jobs:
       - uses: actions/upload-artifact@v1
         with:
           name: hippo
-          path: _dist/hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz
-
-      - uses: actions/upload-artifact@v1
-        with:
-          name: hippo
-          path: _dist/hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.zip
-
-      - uses: actions/upload-artifact@v1
-        with:
-          name: hippo
-          path: _dist/checksums.txt
+          path: |
+            _dist/hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz
+            _dist/hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.zip
+            _dist/checksums.txt

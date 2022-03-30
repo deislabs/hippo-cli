@@ -56,9 +56,8 @@ jobs:
           cp README.md LICENSE target/release/hippo${{ matrix.config.extension }} _dist/
           cd _dist
           tar czf hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz README.md LICENSE hippo${{ matrix.config.extension }}
-          shasum -a 256 *.tar.gz > checksums.txt
           zip -r hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.zip README.md LICENSE hippo${{ matrix.config.extension }}
-          shasum -a 256 *.zip >> checksums.txt
+          shasum -a 256 *.tar.gz *.zip > checksums-${{ env.RELEASE_VERSION }}.txt
 
       - uses: actions/upload-artifact@v1
         with:
@@ -66,4 +65,4 @@ jobs:
           path: |
             _dist/hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz
             _dist/hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.zip
-            _dist/checksums.txt
+            _dist/checksums-${{ env.RELEASE_VERSION }}.txt

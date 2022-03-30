@@ -1,8 +1,11 @@
 use clap::Subcommand;
 
 #[derive(Subcommand)]
+#[clap(alias ="c")]
+#[clap(alias ="channels")]
 pub(crate) enum Commands {
     /// Add a channel
+    #[clap(alias ="new")]
     Add {
         /// The name of the channel
         name: String,
@@ -27,6 +30,8 @@ pub(crate) enum Commands {
         certificate_id: Option<String>,
     },
     /// Remove a channel
+    #[clap(alias ="delete")]
+    #[clap(alias ="rm")]
     Remove {
         /// The channel ID
         id: String,

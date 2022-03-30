@@ -60,6 +60,7 @@ jobs:
 
       - name: package release assets
         if: runner.os == 'Windows'
+        shell: bash
         run: |
           mkdir _dist
           cp README.md LICENSE target/release/hippo${{ matrix.config.extension }} _dist/

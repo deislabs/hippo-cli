@@ -90,7 +90,7 @@ jobs:
         run: echo "RELEASE_VERSION=canary" >> $GITHUB_ENV
 
       - name: download release assets
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v3
         with:
           name: hippo
 

@@ -96,11 +96,9 @@ jobs:
           name: hippo
 
       - name: generate checksums
-        run: |
-          cd hippo
-          sha256sum * > checksums-${{ env.RELEASE_VERSION }}.txt
+        run: sha256sum * > checksums-${{ env.RELEASE_VERSION }}.txt
 
       - uses: actions/upload-artifact@v3
         with:
           name: hippo
-          path: hippo/checksums-${{ env.RELEASE_VERSION }}.txt
+          path: checksums-${{ env.RELEASE_VERSION }}.txt

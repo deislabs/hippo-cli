@@ -114,6 +114,11 @@ impl Cli {
                 println!("IMPORTANT: save this App ID for later - you will need it to update and/or delete the App");
             }
 
+            Commands::App(AppCommands::List { }) => {
+                let apps = hippo_client.list_apps().await?;
+                println!("{:?}", apps.apps);
+            }
+
             Commands::App(AppCommands::Remove { id }) => {
                 hippo_client.remove_app(id.to_owned()).await?;
                 println!("Removed App {}", id);
@@ -132,6 +137,11 @@ impl Cli {
                     .await?;
                 println!("Added Certificate {} (ID = '{}')", name, id);
                 println!("IMPORTANT: save this Certificate ID for later - you will need it to update and/or delete the Certificate");
+            }
+
+            Commands::Certificate(CertificateCommands::List { }) => {
+                let certificates = hippo_client.list_certificates().await?;
+                println!("{:?}", certificates.certificates);
             }
 
             Commands::Certificate(CertificateCommands::Remove { id }) => {
@@ -170,6 +180,11 @@ impl Cli {
                 println!("IMPORTANT: save this Channel ID for later - you will need it to update and/or delete the Channel");
             }
 
+            Commands::Channel(ChannelCommands::List { }) => {
+                let channels = hippo_client.list_channels().await?;
+                println!("{:?}", channels.channels);
+            }
+
             Commands::Channel(ChannelCommands::Remove { id }) => {
                 hippo_client.remove_channel(id.to_owned()).await?;
                 println!("Removed Channel {}", id);
@@ -189,6 +204,11 @@ impl Cli {
                     .await?;
                 println!("Added Environment Variable {} (ID = '{}')", key, id);
                 println!("IMPORTANT: save this Environment Variable ID for later - you will need it to update and/or delete the Environment Variable");
+            }
+
+            Commands::Env(EnvCommands::List { }) => {
+                let envs = hippo_client.list_environmentvariables().await?;
+                println!("{:?}", envs.environment_variables);
             }
 
             Commands::Env(EnvCommands::Remove { id }) => {
@@ -272,6 +292,11 @@ impl Cli {
                     .add_revision(app_storage_id.to_owned(), revision_number.to_owned())
                     .await?;
                 println!("Added Revision {}", revision_number);
+            }
+
+            Commands::Revision(RevisionCommands::List {}) => {
+                let revisions = hippo_client.list_revisions().await?;
+                println!("{:?}", revisions.revisions);
             }
 
             Commands::Whoami {} => {

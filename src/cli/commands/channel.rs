@@ -29,6 +29,10 @@ pub(crate) enum Commands {
         #[clap(long)]
         certificate_id: Option<String>,
     },
+
+    // List all channels
+    List { },
+
     /// Remove a channel
     #[clap(alias ="delete")]
     #[clap(alias ="rm")]

@@ -19,7 +19,6 @@ use hippo_openapi::models::{
 use reqwest::header;
 use serde::Deserialize;
 
-
 const JSON_MIME_TYPE: &str = "application/json";
 
 pub struct ConnectionInfo {
@@ -73,7 +72,8 @@ impl Client {
                 password_confirm: password,
             }),
         )
-        .await.map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn login(&self, username: String, password: String) -> anyhow::Result<TokenInfo> {
@@ -84,7 +84,8 @@ impl Client {
                 password: password,
             }),
         )
-        .await.map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn add_app(&self, name: String, storage_id: String) -> anyhow::Result<String> {
@@ -95,11 +96,14 @@ impl Client {
                 storage_id: storage_id,
             }),
         )
-        .await.map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn remove_app(&self, id: String) -> anyhow::Result<()> {
-        api_app_id_delete(&self.configuration, &id).await.map_err(format_response_error)
+        api_app_id_delete(&self.configuration, &id)
+            .await
+            .map_err(format_response_error)
     }
 
     pub async fn add_certificate(
@@ -116,11 +120,14 @@ impl Client {
                 private_key: private_key,
             }),
         )
-        .await.map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn remove_certificate(&self, id: String) -> anyhow::Result<()> {
-        api_certificate_id_delete(&self.configuration, &id).await.map_err(format_response_error)
+        api_certificate_id_delete(&self.configuration, &id)
+            .await
+            .map_err(format_response_error)
     }
 
     pub async fn add_channel(
@@ -133,23 +140,39 @@ impl Client {
         active_revision_id: Option<String>,
         certificate_id: Option<String>,
     ) -> anyhow::Result<String> {
-        api_channel_post(
-            &self.configuration,
-            Some(CreateChannelCommand {
-                app_id: app_id,
-                name: name,
-                domain,
-                revision_selection_strategy,
-                range_rule,
-                active_revision_id,
-                certificate_id,
-            }),
-        )
-        .await.map_err(format_response_error)
+        let command = CreateChannelCommand {
+            app_id: app_id,
+            name: name,
+            domain,
+            revision_selection_strategy,
+            range_rule,
+            active_revision_id,
+            certificate_id,
+        };
+
+        let local_var_client = &self.configuration.client;
+
+        let mut local_var_req_builder =
+            local_var_client.request(reqwest::Method::POST, "https://localhost:5309");
+
+        local_var_req_builder = local_var_req_builder.json(&command);
+
+        let local_var_req = local_var_req_builder.build()?;
+
+        println!(
+            "{:?}",
+            std::str::from_utf8(local_var_req.body().unwrap().as_bytes().unwrap()).unwrap()
+        );
+
+        api_channel_post(&self.configuration, Some(command))
+            .await
+            .map_err(format_response_error)
     }
 
     pub async fn remove_channel(&self, id: String) -> anyhow::Result<()> {
-        api_channel_id_delete(&self.configuration, &id).await.map_err(format_response_error)
+        api_channel_id_delete(&self.configuration, &id)
+            .await
+            .map_err(format_response_error)
     }
 
     pub async fn add_environment_variable(
@@ -166,11 +189,14 @@ impl Client {
                 channel_id: channel_id,
             }),
         )
-        .await.map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn remove_environment_variable(&self, id: String) -> anyhow::Result<()> {
-        api_environmentvariable_id_delete(&self.configuration, &id).await.map_err(format_response_error)
+        api_environmentvariable_id_delete(&self.configuration, &id)
+            .await
+            .map_err(format_response_error)
     }
 
     pub async fn add_revision(
@@ -185,14 +211,15 @@ impl Client {
                 revision_number: revision_number,
             }),
         )
-        .await.map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 }
 
 #[derive(Deserialize, Debug)]
 struct ValidationExceptionMessage {
     title: String,
-    errors: HashMap<String, Vec<String>>
+    errors: HashMap<String, Vec<String>>,
 }
 
 fn format_response_error<T>(e: Error<T>) -> anyhow::Error {
@@ -200,9 +227,9 @@ fn format_response_error<T>(e: Error<T>) -> anyhow::Error {
         Error::ResponseError(r) => {
             match serde_json::from_str::<ValidationExceptionMessage>(&r.content) {
                 Ok(m) => anyhow::anyhow!("{} {:?}", m.title, m.errors),
-                _ => anyhow::anyhow!(r.content)
+                _ => anyhow::anyhow!(r.content),
             }
-        },
-        _ => anyhow::anyhow!(e.to_string())
+        }
+        _ => anyhow::anyhow!(e.to_string()),
     }
 }

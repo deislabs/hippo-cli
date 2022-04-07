@@ -1,298 +1,51 @@
 # Hippo Client
 
-`hippo` is an **experimental** client for the [Hippo PaaS](https://github.com/deislabs/hippo) and [Bindle](https://github.com/deislabs/bindle).
+`hippo` is an **experimental** client for the [Hippo
+PaaS](https://github.com/deislabs/hippo).
 
-The `hippo` tool processes an application's `HIPPOFACTS` (Hippo
-artifacts) file and generates a bindle that it can either push directly
-or can later be uploaded using `bindle push`.
+The `hippo` tool interacts directly with the Hippo API. Its primary purpose is
+to interact with the various endpoints provided by the
+[hippo-openapi](https://github.com/fermyon/hippo-openapi) project.
 
-## The HIPPOFACTS file
+Users seeking to build, deploy, and run applications should look at
+[spin](https://github.com/fermyon/spin/).
 
-HIPPOFACTS is a TOML file with the following structure:
+## Using the Hippo Client
 
-```toml
-[bindle]
-name = "birdsondemand"
-version = "1.2.3"
-description = "provides birds as a service"  # optional
-authors = ["Joan Q Programmer"]              # optional
+Authentication is handled through `hippo login`, which logs into Hippo. With
+`hippo login`, the Hippo URL is specified in the `--url` flag. Hippo requires
+authentication: if `--username` or `--password` are not provided, the CLI will
+prompt for that information.
 
-[[handler]]
-route = "/birds/flightless"
-name = "bin/penguin.wasm"
-files = ["photo/adelie.png", "photo/rockhopper.png", "stock/*.jpg"]
+Logging out can be performed with `hippo logout`, which logs out of Hippo.
 
-[[handler]]
-route = "/birds/irritable/fighty"
-name = "bin/cassowary.wasm"
-# entrypoint key is optional
-# files key is optional
+If you want to skip server TLS verification, pass the `-k` flag to `hippo
+login`. This can be useful if you are running development services with
+self-signed certificates.
 
-[[handler]]
-route = "/birds/naughty"
-name = "bin/kea.wasm"
-entrypoint = "steal_wipers"
-files = ["stock/kea.jpg", "stock/wipers.jpg"]
-```
-
-The `bindle` section is copied directly to `invoice.toml`, _except_ that in development
-mode a prerelease segment is appended to the version to make it unique.
-
-Each `handler` table is processed as follows:
-
-* A group for the handler is added to the invoice
-* The `name` value is looked up in the file system, and a parcel is entered into the invoice
-  for the corresponding file. The parcel's `conditions.requires` is set to the handler group.
-* If the handler has a `files` key, all patterns in that array are matched against the file
-  system, and a parcel is entered into the invoice for the corresponding file.  The parcel
-  `label.name` is the relative path of the file to the `HIPPOFACTS` file.The parcel's
-  `conditions.memberOf` is set to a list of _all_ handler groups that contained patterns that
-  the file matched - this may be more than one if multiple handler file patterns matched the
-  same file.
-
-For example, given the following file structure:
-
-```
-|- HIPPOFACTS
-|- src
-|  |- main.rs
-|  |- utils.rs
-|- bin
-|  |- cassowary.wasm
-|  |- kea.wasm
-|  |- kokako.wasm
-|  |- penguin.wasm
-|- photo
-|  |- adelie.png
-|  |- emperor.png
-|  |- rockhopper.png
-|- stock
-   |- kea.jpg
-   |- little-blue.jpg
-   |- little-blue.png
-   |- wipers.jpg
-```
-
-the previous `HIPPOFACTS` would create the following invoice (omitting some details
-and adding comments):
-
-```toml
-bindleVersion = '1.0.0'
-
-[bindle]
-name = 'birdsondemand'
-version = '1.2.3-ivan-2021.05.31.16.49.09.990'
-description = 'provides birds as a service'
-authors = ['Joan Q Programmer']
-
-# Parcels representing handler WASM modules have a `requires` attribute
-# and a `wagi.route` feature, and a `wagi.entrypoint` if specified in
-# the source spec
-
-[[parcel]]
-[parcel.label]
-sha256 = '0a4346f806b28b3ce94905c3ac56fcd5ee2337d8613161696aba52eb0c3551cc'
-name = 'bin/penguin.wasm'
-[parcel.label.feature.wagi]
-file = 'false'
-route = '/birds/flightless'
-[parcel.conditions]
-requires = ['bin/penguin.wasm-files']
-
-[[parcel]]
-[parcel.label]
-sha256 = '1f71511371129511321c45be058c60e23cf9ba898d8a3f3309555985b5027490'
-name = 'bin/cassowary.wasm'
-[parcel.label.feature.wagi]
-file = 'false'
-route = '/birds/irritable/fighty'
-[parcel.conditions]
-requires = ['bin/cassowary.wasm-files']
-
-[[parcel]]
-[parcel.label]
-sha256 = 'bab02c178882085bf20defd15c0e8971edd95488a1ecb4a6273e6afcfb3c4030'
-name = 'bin/kea.wasm'
-[parcel.label.feature.wagi]
-entrypoint = 'steal_wipers'
-file = 'false'
-route = '/birds/naughty'
-[parcel.conditions]
-requires = ['bin/kea.wasm-files']
-
-# Parcels derived from `files` patterns have a `memberOf` attribute and a
-# `wagi.file` feature of "true"
-
-[[parcel]]
-[parcel.label]
-sha256 = 'e99f19705a23cbeeeade5d2b4f8b83fff09beb093552e82073cdb302ee10eb76'
-name = 'photo/adelie.png'
-[parcel.label.feature.wagi]
-file = 'true'
-[parcel.conditions]
-memberOf = ['bin/penguin.wasm-files']
-
-[[parcel]]
-[parcel.label]
-sha256 = 'e8f7b60dfe5ee560edd1ac616463a0682a0e7c57a5ce2a8fe5c0990e500d0ac5'
-name = 'photo/rockhopper.png'
-[parcel.label.feature.wagi]
-file = 'true'
-[parcel.conditions]
-memberOf = ['bin/penguin.wasm-files']
-
-[[parcel]]
-[parcel.label]
-sha256 = '843baaf5a63cbc38d4d4c00036b95e435254eece7480fb717c8a17dcdc2aeefc'
-name = 'stock/little-blue.jpg'
-[parcel.label.feature.wagi]
-file = 'true'
-[parcel.conditions]
-memberOf = ['bin/penguin.wasm-files']
-
-# Some files are matched by more than one handler's patterns
-
-[[parcel]]
-[parcel.label]
-sha256 = '6451ab5be799a6aa52ce8b8a084a12066bb2dd8e1a73a692627bb96b4b9a72f0'
-name = 'stock/wipers.jpg'
-[parcel.label.feature.wagi]
-file = 'true'
-[parcel.conditions]
-memberOf = [
-    'bin/penguin.wasm-files',
-    'bin/kea.wasm-files',
-]
-
-[[parcel]]
-[parcel.label]
-sha256 = '93c3a391d842e3b8032d560db4870b5426c5c05a9f2a60b187e567ae69d8e658'
-name = 'stock/kea.jpg'
-[parcel.label.feature.wagi]
-file = 'true'
-[parcel.conditions]
-memberOf = [
-    'bin/penguin.wasm-files',
-    'bin/kea.wasm-files',
-]
-
-# Group per handler
-
-[[group]]
-name = 'bin/penguin.wasm-files'
-
-[[group]]
-name = 'bin/cassowary.wasm-files'
-
-[[group]]
-name = 'bin/kea.wasm-files'
-```
-
-`hippo` does not currently support Bindle's `parcel.label.feature` or `signature` features.
-
-### External handlers
-
-It is sometimes useful to have routes handled by 'library' parcels that perform common
-functions like serving static assets from the filesystem. To do this, rather than
-copying the Wasm handler locally, you can reference it directly from your HIPPOFACTS.
-To do this:
-
-* The library parcel but have an annotation named `wagi_handler_id`. This is the ID by
-  which HIPPOFACTS will refer to it - this decouples the reference from volatile details
-  like parcel name or SHA.
-* Instead of a `name` in your `handler` table, you specify a `bindleId` and `handlerId`.
-* Do not specify an `entrypoint` - this is defined by the library parcel.
-
-For example:
-
-```toml
-[[handler]]
-external.bindleId = "deislabs/fileserver/1.0.0"
-external.handlerId = "static"
-route = "/images"
-files = ["birds/*.jpg"]
-```
-
-The Hippo client will locate the specified `wagi_handler_id` in the given bindle, and create a
-parcel in your invoice that points to the same blob but with a `requires` condition for
-the handler group. It also creates parcels for any parcels that the handler `requires`
-in its original bindle.
-
-### Reusable library modules
-
-To create a 'library' parcel that can be referenced as an external handler, provide an
-`export` section.  This is similar to a local handler except instead of a `route` it
-has an `id` - this is the name by which it can be referenced (it gets mapped to the
-`wagi_handler_id` annotation).  For example:
-
-```toml
-[[export]]
-name = "gallery.wasm"
-id = "gallery"
-files = ["cache/*.db"]
-```
-
-**NOTE:** If your spec consists only of exports, you should not notify Hippo, because
-there will be no application mapped to the resultant bindle. Pass `-a bindle` to
-push to the Bindle server but not register it with Hippo.
-
-## Running the Hippo Client
-
-As a developer you can run `hippo push .` in your `HIPPOFACTS` directory to
-assemble all matching files and publish them as a bindle. In this mode,
-`hippo`:
-
-* Mangles the version with a prerelease segment
-* Stages to a temporary directory
-* Pushes to the Bindle server
-* Notifies Hippo that a new bindle version is available
-
-Authentication is handled through two commands:
-
-- `hippo auth login`, which logs into Hippo
-- `hippo bindle login`, which logs into Bindle
-
-With `hippo auth login`, the Hippo URL is specified in the `--url` flag. Hippo requires authentication:
-if `--username` or `--password` are not provided, the CLI will prompt for that information.
-
-With `hippo bindle login`, the Bindle server is specified with the `--url` flag. If the Bindle server
-requires authentication, specify this via the `--username` and `--password` options. Note that Bindle
-authentication is independent of Hippo authentication, and in some cases (e.g. if `bindle-server` is
-provided the `--unauthenticated` flag), no authentication is necessary!
-
-If you want to review the proposed bindle rather than pushing it, pass
-`hippo bindle prepare -d <staging_dir> .`. This will stage the bindle to the specified directory but
-_not_ push it. If you want to push the generated bindle but not notify Hippo, use
-`hippo bindle push .`.
-
-In a CI environment you can supply the `-v production` option to suppress version mangling.
-This will create and upload the bindle with the version from `HIPPOFACTS`, without the
-prerelease segment.
-
-If you want to skip server TLS verification, pass the `-k` flag to either `login` command. This can be
-useful if you are running development services with self-signed certificates.
-**This is a security risk: do not use it in production.**
-
-Logging out can be performed with
-
-- `hippo auth logout`, which logs out of Hippo
-- `hippo bindle logout`, which logs out of Bindle
+**Note: the `-k` and `--danger-accept-invalid-certs` flags are a security risk.
+Do not use them in production.**
 
 ## Building from source
 
-* Known link failure on WSL: workaround is to build once with `RUSTFLAGS='-C opt-level=0' cargo build`
-(after which plain `cargo build` seems to work)
+* Known link failure on WSL: workaround is to build once with `RUSTFLAGS='-C
+opt-level=0' cargo build` (after which plain `cargo build` seems to work)
 
 ## Contributing
 
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.microsoft.com.
+This project welcomes contributions and suggestions.  Most contributions require
+you to agree to a Contributor License Agreement (CLA) declaring that you have
+the right to, and actually do, grant us the rights to use your contribution. For
+details, visit https://cla.microsoft.com.
 
-When you submit a pull request, a CLA-bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., label, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
+When you submit a pull request, a CLA-bot will automatically determine whether
+you need to provide a CLA and decorate the PR appropriately (e.g., label,
+comment). Simply follow the instructions provided by the bot. You will only need
+to do this once across all repos using our CLA.
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+This project has adopted the [Microsoft Open Source Code of
+Conduct](https://opensource.microsoft.com/codeofconduct/). For more information
+see the [Code of Conduct
+FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact
+[opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional
+questions or comments.

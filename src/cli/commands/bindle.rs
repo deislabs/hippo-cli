@@ -3,8 +3,10 @@ use std::path::PathBuf;
 use clap::Subcommand;
 
 #[derive(Subcommand)]
+#[clap(alias ="b")]
 pub(crate) enum Commands {
     /// Prepare a bindle, but write it to disk instead of sending it over the network
+    #[clap(alias ="prep")]
     Prepare {
         /// The artifacts spec (file or directory containing HIPPOFACTS file)
         #[clap(parse(from_os_str), default_value = ".")]
@@ -25,6 +27,7 @@ pub(crate) enum Commands {
     },
 
     /// Package and upload Hippo artifacts without notifying Hippo
+    #[clap(alias ="p")]
     Push {
         /// The artifacts spec (file or directory containing HIPPOFACTS file)
         #[clap(parse(from_os_str), default_value = ".")]

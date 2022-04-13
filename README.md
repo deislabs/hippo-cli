@@ -85,6 +85,19 @@ Added Environment Variable HELLO (ID = 'c97f9855-d998-4dac-889b-11b553f53bea')
 IMPORTANT: save this Environment Variable ID for later - you will need it to update and/or delete the Environment Variable
 ```
 
+### Deploying an existing Bindle
+
+To automate the process, Hippo provides a command to automate the process of
+creating an application, channel, and registering a revision in one command:
+`hippo deploy`.
+
+Assuming you pushed a bindle with the ID `helloworld/1.0.0`:
+
+```console
+$ hippo deploy helloworld 1.0.0
+Deployed helloworld/1.0.0
+```
+
 ## Building from source
 
 ```console

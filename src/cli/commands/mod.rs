@@ -16,6 +16,17 @@ pub(crate) enum Commands {
     #[clap(subcommand)]
     Certificate(certificate::Commands),
 
+    /// Deploy a Bindle ID
+    Deploy {
+        /// The storage ID of the Bindle
+        storage_id: String,
+        /// The revision number uploaded to Bindle
+        revision_number: String,
+        /// The domain name used to serve requests for this application
+        #[clap(short, long)]
+        domain: Option<String>,
+    },
+
     /// Add, update, and remove Channels
     #[clap(subcommand)]
     Channel(channel::Commands),

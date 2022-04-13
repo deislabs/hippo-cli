@@ -175,6 +175,17 @@ impl Cli {
                 println!("Removed Channel {}", id);
             }
 
+            Commands::Deploy {
+                storage_id,
+                revision_number,
+                domain
+            } => {
+                let app_id = hippo_client.add_app(storage_id.to_owned(), storage_id.to_owned()).await?;
+                hippo_client.add_channel(app_id, "hippo-deploy".to_owned(), domain.to_owned(), ChannelRevisionSelectionStrategy::_0, None, None, None).await?;
+                hippo_client.add_revision(storage_id.to_owned(), revision_number.to_owned()).await?;
+                println!("Deployed {}/{}", storage_id, revision_number);
+            }
+
             Commands::Env(EnvCommands::Add {
                 key,
                 value,

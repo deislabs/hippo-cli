@@ -1,9 +1,5 @@
-mod bindle;
 mod cli;
-mod expander;
 mod hippo;
-mod hippofacts;
-mod warnings;
 
 use cli::Cli;
 

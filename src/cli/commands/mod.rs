@@ -1,30 +1,16 @@
 pub(crate) mod app;
-pub(crate) mod auth;
-pub(crate) mod bindle;
 pub(crate) mod certificate;
 pub(crate) mod channel;
 pub(crate) mod environment_variable;
-pub(crate) mod new;
 pub(crate) mod revision;
 
-use clap::{AppSettings, Subcommand};
-use std::path::PathBuf;
-
-const INVOICE_VERSION_ACCEPTED_VALUES: &[&str] = &["dev", "development", "prod", "production"];
+use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub(crate) enum Commands {
     /// Add, update, and remove Applications
     #[clap(subcommand)]
     App(app::Commands),
-
-    /// Register new accounts and log in/out of Hippo
-    #[clap(subcommand)]
-    Auth(auth::Commands),
-
-    /// Register new accounts and log in/out of Hippo
-    #[clap(subcommand)]
-    Bindle(bindle::Commands),
 
     /// Add, update, and remove TLS Certificate
     #[clap(subcommand)]
@@ -38,28 +24,45 @@ pub(crate) enum Commands {
     #[clap(subcommand)]
     Env(environment_variable::Commands),
 
-    /// Create project-specific files
-    #[clap(subcommand)]
-    New(new::Commands),
+    /// Log into Hippo
+    Login {
+        /// The URL to log into Hippo
+        #[clap(env = "HIPPO_URL", long, default_value = "https://localhost:5309")]
+        url: String,
+        /// The username to log into Hippo
+        #[clap(env = "HIPPO_USERNAME", long)]
+        username: Option<String>,
+        /// The password to log into Hippo
+        #[clap(env = "HIPPO_PASSWORD", long)]
+        password: Option<String>,
+        /// Should invalid TLS certificates be accepted by the client?
+        #[clap(env, short = 'k', long)]
+        danger_accept_invalid_certs: bool,
+    },
+
+    /// End the current Hippo login session
+    Logout {},
+
+    /// Create a new Hippo account
+    Register {
+        /// The Hippo URL
+        #[clap(env = "HIPPO_URL", long, default_value = "https://localhost:5309")]
+        url: String,
+        /// The username
+        #[clap(env = "HIPPO_USERNAME", long)]
+        username: Option<String>,
+        /// The password
+        #[clap(env = "HIPPO_PASSWORD", long)]
+        password: Option<String>,
+        /// Should invalid TLS certificates be accepted by the client?
+        #[clap(env, short = 'k', long)]
+        danger_accept_invalid_certs: bool,
+    },
 
     /// Add and remove revisions
     #[clap(subcommand)]
     Revision(revision::Commands),
 
-    /// Package and upload Hippo artifacts, notifying Hippo
-    #[clap(setting(AppSettings::ArgRequiredElseHelp))]
-    Push {
-        /// The artifacts spec (file or directory containing HIPPOFACTS file)
-        #[clap(parse(from_os_str), default_value = ".")]
-        path: PathBuf,
-
-        /// How to version the generated invoice
-        #[clap(
-            short = 'v',
-            long,
-            default_value = "development",
-            possible_values(INVOICE_VERSION_ACCEPTED_VALUES)
-        )]
-        invoice_version: String,
-    },
+    /// prints the logged in user
+    Whoami {},
 }

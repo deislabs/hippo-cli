@@ -1,7 +1,0 @@
-[bindle]
-name = "bad_version"
-version = "1.2.3.4"
-
-[[handler]]
-name = "out/fake.wasm"
-route = "/fake"

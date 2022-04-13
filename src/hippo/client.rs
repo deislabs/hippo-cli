@@ -149,21 +149,6 @@ impl Client {
             active_revision_id,
             certificate_id,
         };
-
-        let local_var_client = &self.configuration.client;
-
-        let mut local_var_req_builder =
-            local_var_client.request(reqwest::Method::POST, "https://localhost:5309");
-
-        local_var_req_builder = local_var_req_builder.json(&command);
-
-        let local_var_req = local_var_req_builder.build()?;
-
-        println!(
-            "{:?}",
-            std::str::from_utf8(local_var_req.body().unwrap().as_bytes().unwrap()).unwrap()
-        );
-
         api_channel_post(&self.configuration, Some(command))
             .await
             .map_err(format_response_error)

@@ -235,6 +235,7 @@ impl Cli {
                     fs::create_dir_all(hippo_config_path.parent().unwrap())?;
                 }
                 serde_json::to_writer(File::create(hippo_config_path)?, &hippo_conf)?;
+                println!("Logged out");
             }
 
             Commands::Register {

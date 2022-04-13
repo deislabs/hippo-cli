@@ -30,7 +30,7 @@ Logging out can be performed with `hippo logout`, which logs out of Hippo.
 
 ```console
 $ hippo logout
-$
+Logged out
 ```
 
 If you want to skip server TLS verification, pass the `-k` flag to `hippo

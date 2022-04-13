@@ -2,8 +2,7 @@
 name = "hippo"
 version = "0.11.0"
 authors = [
-    "Ivan Towlson <ivan.towlson@fermyon.com>",
-    "Matt Fisher <matt.fisher@fermyon.com>"
+    "Fermyon Engineering <engineering@fermyon.com>"
 ]
 edition = "2018"
 

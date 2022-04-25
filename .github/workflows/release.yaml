@@ -56,7 +56,6 @@ jobs:
           cp README.md LICENSE target/release/hippo${{ matrix.config.extension }} _dist/
           cd _dist
           tar czf hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz README.md LICENSE hippo${{ matrix.config.extension }}
-          zip -r hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.zip README.md LICENSE hippo${{ matrix.config.extension }}
 
       - name: package release assets
         if: runner.os == 'Windows'
@@ -65,14 +64,20 @@ jobs:
           mkdir _dist
           cp README.md LICENSE target/release/hippo${{ matrix.config.extension }} _dist/
           cd _dist
-          tar czf hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz README.md LICENSE hippo${{ matrix.config.extension }}
           7z a -tzip hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.zip README.md LICENSE hippo${{ matrix.config.extension }}
 
       - uses: actions/upload-artifact@v3
+        if: runner.os != 'Windows'
         with:
           name: hippo
           path: |
             _dist/hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.tar.gz
+      
+      - uses: actions/upload-artifact@v3
+        if: runner.os == 'Windows'
+        with:
+          name: hippo
+          path: |
             _dist/hippo-${{ env.RELEASE_VERSION }}-${{ env.RUNNER_OS }}-${{ matrix.config.arch }}.zip
 
   checksums:

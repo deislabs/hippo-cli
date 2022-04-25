@@ -116,7 +116,7 @@ impl Cli {
 
             Commands::App(AppCommands::List { }) => {
                 let apps = hippo_client.list_apps().await?;
-                println!("{:?}", apps.apps);
+                println!("{}", serde_json::to_string_pretty(&apps.apps)?);
             }
 
             Commands::App(AppCommands::Remove { id }) => {
@@ -141,7 +141,7 @@ impl Cli {
 
             Commands::Certificate(CertificateCommands::List { }) => {
                 let certificates = hippo_client.list_certificates().await?;
-                println!("{:?}", certificates.certificates);
+                println!("{}", serde_json::to_string_pretty(&certificates.certificates)?);
             }
 
             Commands::Certificate(CertificateCommands::Remove { id }) => {
@@ -182,7 +182,7 @@ impl Cli {
 
             Commands::Channel(ChannelCommands::List { }) => {
                 let channels = hippo_client.list_channels().await?;
-                println!("{:?}", channels.channels);
+                println!("{}", serde_json::to_string_pretty(&channels.channels)?);
             }
 
             Commands::Channel(ChannelCommands::Remove { id }) => {
@@ -208,7 +208,7 @@ impl Cli {
 
             Commands::Env(EnvCommands::List { }) => {
                 let envs = hippo_client.list_environmentvariables().await?;
-                println!("{:?}", envs.environment_variables);
+                println!("{}", serde_json::to_string_pretty(&envs.environment_variables)?);
             }
 
             Commands::Env(EnvCommands::Remove { id }) => {
@@ -296,7 +296,7 @@ impl Cli {
 
             Commands::Revision(RevisionCommands::List {}) => {
                 let revisions = hippo_client.list_revisions().await?;
-                println!("{:?}", revisions.revisions);
+                println!("{}", serde_json::to_string_pretty(&revisions.revisions)?);
             }
 
             Commands::Whoami {} => {

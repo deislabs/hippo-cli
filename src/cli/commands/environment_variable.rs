@@ -17,6 +17,10 @@ pub(crate) enum Commands {
         /// The channel ID this environment variable will be bound to
         channel_id: String,
     },
+
+    // List all environment variables
+    List { },
+
     /// Remove an environment variable
     #[clap(alias ="delete")]
     #[clap(alias ="rm")]

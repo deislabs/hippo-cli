@@ -12,6 +12,10 @@ pub(crate) enum Commands {
         /// The Bindle ID where releases will be uploaded
         storage_id: String,
     },
+
+    // List all apps
+    List { },
+
     /// Remove an application
     #[clap(alias ="delete")]
     #[clap(alias ="rm")]

@@ -19,6 +19,10 @@ pub(crate) enum Commands {
         #[clap(parse(from_os_str), value_name = "PRIVATE_KEY")]
         private_key_path: PathBuf,
     },
+
+    // List all certificates
+    List { },
+
     /// Remove a TLS certificate
     #[clap(alias ="delete")]
     #[clap(alias ="rm")]

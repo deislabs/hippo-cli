@@ -12,4 +12,7 @@ pub(crate) enum Commands {
         /// The revision number uploaded to Bindle
         revision_number: String,
     },
+
+    // List all revisions
+    List { }
 }

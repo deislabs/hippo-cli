@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
 use hippo_openapi::apis::account_api::{api_account_createtoken_post, api_account_post};
-use hippo_openapi::apis::app_api::{api_app_id_delete, api_app_post};
-use hippo_openapi::apis::certificate_api::{api_certificate_id_delete, api_certificate_post};
-use hippo_openapi::apis::channel_api::{api_channel_id_delete, api_channel_post};
+use hippo_openapi::apis::app_api::{api_app_get, api_app_id_delete, api_app_post};
+use hippo_openapi::apis::certificate_api::{api_certificate_get, api_certificate_id_delete, api_certificate_post};
+use hippo_openapi::apis::channel_api::{api_channel_get, api_channel_id_delete, api_channel_post};
 use hippo_openapi::apis::configuration::{ApiKey, Configuration};
 use hippo_openapi::apis::environment_variable_api::{
-    api_environmentvariable_id_delete, api_environmentvariable_post,
+    api_environmentvariable_get, api_environmentvariable_id_delete, api_environmentvariable_post,
 };
-use hippo_openapi::apis::revision_api::api_revision_post;
+use hippo_openapi::apis::revision_api::{api_revision_get, api_revision_post};
 use hippo_openapi::apis::Error;
 use hippo_openapi::models::{
     ChannelRevisionSelectionStrategy, CreateAccountCommand, CreateAppCommand,
     CreateCertificateCommand, CreateChannelCommand, CreateEnvironmentVariableCommand,
-    CreateTokenCommand, RegisterRevisionCommand, TokenInfo,
+    CreateTokenCommand, RegisterRevisionCommand, TokenInfo, RevisionsVm, AppsVm, CertificatesVm, ChannelsVm, EnvironmentVariablesVm,
 };
 
 use reqwest::header;
@@ -105,6 +105,10 @@ impl Client {
             .map_err(format_response_error)
     }
 
+    pub async fn list_apps(&self) -> anyhow::Result<AppsVm> {
+        api_app_get(&self.configuration).await.map_err(format_response_error)
+    }
+
     pub async fn add_certificate(
         &self,
         name: String,
@@ -121,6 +125,10 @@ impl Client {
         )
         .await
         .map_err(format_response_error)
+    }
+
+    pub async fn list_certificates(&self) -> anyhow::Result<CertificatesVm> {
+        api_certificate_get(&self.configuration).await.map_err(format_response_error)
     }
 
     pub async fn remove_certificate(&self, id: String) -> anyhow::Result<()> {
@@ -153,6 +161,10 @@ impl Client {
             .map_err(format_response_error)
     }
 
+    pub async fn list_channels(&self) -> anyhow::Result<ChannelsVm> {
+        api_channel_get(&self.configuration).await.map_err(format_response_error)
+    }
+
     pub async fn remove_channel(&self, id: String) -> anyhow::Result<()> {
         api_channel_id_delete(&self.configuration, &id)
             .await
@@ -177,6 +189,10 @@ impl Client {
         .map_err(format_response_error)
     }
 
+    pub async fn list_environmentvariables(&self) -> anyhow::Result<EnvironmentVariablesVm> {
+        api_environmentvariable_get(&self.configuration).await.map_err(format_response_error)
+    }
+
     pub async fn remove_environment_variable(&self, id: String) -> anyhow::Result<()> {
         api_environmentvariable_id_delete(&self.configuration, &id)
             .await
@@ -197,6 +213,10 @@ impl Client {
         )
         .await
         .map_err(format_response_error)
+    }
+
+    pub async fn list_revisions(&self) -> anyhow::Result<RevisionsVm> {
+        api_revision_get(&self.configuration).await.map_err(format_response_error)
     }
 }
 

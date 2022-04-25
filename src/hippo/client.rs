@@ -68,8 +68,7 @@ impl Client {
             &self.configuration,
             Some(CreateAccountCommand {
                 user_name: username,
-                password: password.clone(),
-                password_confirm: password,
+                password: password,
             }),
         )
         .await

@@ -1,5 +1,5 @@
 mod cli;
-mod hippo;
+mod client;
 
 use cli::Cli;
 

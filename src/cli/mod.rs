@@ -6,7 +6,7 @@ use commands::{
     revision::Commands as RevisionCommands, Commands,
 };
 
-use crate::hippo::{Client, ConnectionInfo};
+use crate::client::{Client, ConnectionInfo};
 
 use clap::Parser;
 use dialoguer::{Input, Password};

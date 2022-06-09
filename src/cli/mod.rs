@@ -158,7 +158,7 @@ impl Cli {
                 certificate_id,
             }) => {
                 if range_rule.is_some() && revision_id.is_some() {
-                    anyhow::anyhow!("cannot specify both a range rule and a revision ID");
+                    anyhow::bail!("cannot specify both a range rule and a revision ID");
                 }
                 let revision_selection_strategy = match (range_rule, revision_id) {
                     (Some(_), None) => ChannelRevisionSelectionStrategy::UseRangeRule,

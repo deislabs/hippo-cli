@@ -44,7 +44,7 @@ impl Default for HippoConfig {
             danger_accept_invalid_certs: false,
             token_info: None,
             username: "".to_owned(),
-            url: "https://localhost:5309".to_owned(),
+            url: "http://localhost:5309".to_owned(),
         }
     }
 }

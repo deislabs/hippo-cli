@@ -27,7 +27,7 @@ pub(crate) enum Commands {
     /// Log into Hippo
     Login {
         /// The URL to log into Hippo
-        #[clap(env = "HIPPO_URL", long, default_value = "https://localhost:5309")]
+        #[clap(env = "HIPPO_URL", long, default_value = "http://localhost:5309")]
         url: String,
         /// The username to log into Hippo
         #[clap(env = "HIPPO_USERNAME", long)]
@@ -46,7 +46,7 @@ pub(crate) enum Commands {
     /// Create a new Hippo account
     Register {
         /// The Hippo URL
-        #[clap(env = "HIPPO_URL", long, default_value = "https://localhost:5309")]
+        #[clap(env = "HIPPO_URL", long, default_value = "http://localhost:5309")]
         url: String,
         /// The username
         #[clap(env = "HIPPO_USERNAME", long)]

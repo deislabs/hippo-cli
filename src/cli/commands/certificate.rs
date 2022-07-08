@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use clap::Subcommand;
 
 #[derive(Subcommand)]
-#[clap(alias ="cert")]
-#[clap(alias ="certs")]
-#[clap(alias ="certificates")]
+#[clap(alias = "cert")]
+#[clap(alias = "certs")]
+#[clap(alias = "certificates")]
 pub(crate) enum Commands {
     /// Add a TLS certificate
-    #[clap(alias ="new")]
+    #[clap(alias = "new")]
     Add {
         /// The name of the certificate
         name: String,
@@ -21,11 +21,11 @@ pub(crate) enum Commands {
     },
 
     // List all certificates
-    List { },
+    List {},
 
     /// Remove a TLS certificate
-    #[clap(alias ="delete")]
-    #[clap(alias ="rm")]
+    #[clap(alias = "delete")]
+    #[clap(alias = "rm")]
     Remove {
         /// The certificate ID
         id: String,

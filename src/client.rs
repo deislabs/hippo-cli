@@ -170,7 +170,6 @@ impl Client {
             .map_err(format_response_error)
     }
 
-    #[allow(dead_code)]
     pub async fn get_channel_by_id(&self, id: &str) -> anyhow::Result<ChannelItem> {
         api_channel_id_get(&self.configuration, id)
             .await

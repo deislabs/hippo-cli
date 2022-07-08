@@ -40,4 +40,10 @@ pub(crate) enum Commands {
         /// The channel ID
         id: String,
     },
+
+    /// Fetch logs
+    Logs {
+        /// The channel ID
+        id: String,
+    }
 }

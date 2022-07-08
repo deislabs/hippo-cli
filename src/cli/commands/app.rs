@@ -13,7 +13,7 @@ pub(crate) enum Commands {
         storage_id: String,
     },
 
-    // List all apps
+    /// List all apps
     List {},
 
     /// Remove an application

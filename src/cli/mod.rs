@@ -190,6 +190,12 @@ impl Cli {
                 println!("Removed {}", id);
             }
 
+            Commands::Channel(ChannelCommands::Logs { id }) => {
+                for line in hippo_client.channel_logs(id.to_owned()).await?.logs {
+                    println!("{}", line);
+                }
+            }
+
             Commands::Env(EnvCommands::Add {
                 key,
                 value,
@@ -207,7 +213,7 @@ impl Cli {
 
             Commands::Env(EnvCommands::List { channel_id }) => {
                 let envs = hippo_client
-                    .list_environmentvariables(channel_id.to_owned())
+                    .list_environment_variables(channel_id.to_owned())
                     .await?;
                 println!("{}", serde_json::to_string_pretty(&envs)?);
             }

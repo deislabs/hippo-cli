@@ -1,3 +1,4 @@
+use hippo_openapi::models::GetChannelLogsVm;
 use hippo_openapi::models::PatchChannelCommand;
 use std::collections::HashMap;
 
@@ -8,7 +9,7 @@ use hippo_openapi::apis::certificate_api::{
 };
 use hippo_openapi::apis::channel_api::{
     api_channel_get, api_channel_id_delete, api_channel_id_get, api_channel_id_patch,
-    api_channel_post,
+    api_channel_post, api_channel_logs_id_get
 };
 use hippo_openapi::apis::configuration::{ApiKey, Configuration};
 use hippo_openapi::apis::revision_api::{api_revision_get, api_revision_post};
@@ -188,16 +189,19 @@ impl Client {
             .map_err(format_response_error)
     }
 
+    pub async fn channel_logs(&self, id: String) -> anyhow::Result<GetChannelLogsVm> {
+        api_channel_logs_id_get(&self.configuration, &id)
+            .await
+            .map_err(format_response_error)
+    }
+
     pub async fn add_environment_variable(
         &self,
         key: String,
         value: String,
         channel_id: String,
     ) -> anyhow::Result<()> {
-        let mut environment_variables = self
-            .get_channel_by_id(&channel_id)
-            .await?
-            .environment_variables;
+        let mut environment_variables = self.list_environment_variables(channel_id.clone()).await?;
         environment_variables.push(EnvironmentVariableItem {
             // TODO: fix this in hippo 0.19 - shouldn't need to reference the channel ID
             channel_id: channel_id.clone(),
@@ -227,13 +231,11 @@ impl Client {
         .map_err(format_response_error)
     }
 
-    pub async fn list_environmentvariables(
+    pub async fn list_environment_variables(
         &self,
         channel_id: String,
     ) -> anyhow::Result<Vec<EnvironmentVariableItem>> {
-        let channel = api_channel_id_get(&self.configuration, &channel_id)
-            .await
-            .map_err(format_response_error)?;
+        let channel = self.get_channel_by_id(&channel_id).await?;
         Ok(channel.environment_variables)
     }
 
@@ -242,10 +244,7 @@ impl Client {
         channel_id: String,
         key: String,
     ) -> anyhow::Result<()> {
-        let mut environment_variables = self
-            .get_channel_by_id(&channel_id)
-            .await?
-            .environment_variables;
+        let mut environment_variables = self.list_environment_variables(channel_id.clone()).await?;
         let index = environment_variables
             .iter()
             .position(|e| e.key == key)

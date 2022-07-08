@@ -114,7 +114,7 @@ impl Cli {
                 println!("IMPORTANT: save this App ID for later - you will need it to update and/or delete the App");
             }
 
-            Commands::App(AppCommands::List { }) => {
+            Commands::App(AppCommands::List {}) => {
                 let apps = hippo_client.list_apps().await?;
                 println!("{}", serde_json::to_string_pretty(&apps.items)?);
             }
@@ -139,7 +139,7 @@ impl Cli {
                 println!("IMPORTANT: save this Certificate ID for later - you will need it to update and/or delete the Certificate");
             }
 
-            Commands::Certificate(CertificateCommands::List { }) => {
+            Commands::Certificate(CertificateCommands::List {}) => {
                 let certificates = hippo_client.list_certificates().await?;
                 println!("{}", serde_json::to_string_pretty(&certificates.items)?);
             }
@@ -180,7 +180,7 @@ impl Cli {
                 println!("IMPORTANT: save this Channel ID for later - you will need it to update and/or delete the Channel");
             }
 
-            Commands::Channel(ChannelCommands::List { }) => {
+            Commands::Channel(ChannelCommands::List {}) => {
                 let channels = hippo_client.list_channels().await?;
                 println!("{}", serde_json::to_string_pretty(&channels.items)?);
             }
@@ -205,17 +205,14 @@ impl Cli {
                 println!("Added {}={}", key, value);
             }
 
-            Commands::Env(EnvCommands::List {
-                channel_id,
-            }) => {
-                let envs = hippo_client.list_environmentvariables(channel_id.to_owned()).await?;
+            Commands::Env(EnvCommands::List { channel_id }) => {
+                let envs = hippo_client
+                    .list_environmentvariables(channel_id.to_owned())
+                    .await?;
                 println!("{}", serde_json::to_string_pretty(&envs)?);
             }
 
-            Commands::Env(EnvCommands::Remove {
-                channel_id,
-                id
-            }) => {
+            Commands::Env(EnvCommands::Remove { channel_id, id }) => {
                 hippo_client
                     .remove_environment_variable(channel_id.to_owned(), id.to_owned())
                     .await?;

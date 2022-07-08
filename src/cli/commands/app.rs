@@ -1,11 +1,11 @@
 use clap::Subcommand;
 
 #[derive(Subcommand)]
-#[clap(alias ="a")]
-#[clap(alias ="apps")]
+#[clap(alias = "a")]
+#[clap(alias = "apps")]
 pub(crate) enum Commands {
     /// Add an application
-    #[clap(alias ="new")]
+    #[clap(alias = "new")]
     Add {
         /// The name of the application
         name: String,
@@ -14,11 +14,11 @@ pub(crate) enum Commands {
     },
 
     // List all apps
-    List { },
+    List {},
 
     /// Remove an application
-    #[clap(alias ="delete")]
-    #[clap(alias ="rm")]
+    #[clap(alias = "delete")]
+    #[clap(alias = "rm")]
     Remove {
         /// The application ID
         id: String,

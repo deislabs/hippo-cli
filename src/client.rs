@@ -1,3 +1,4 @@
+use hippo_openapi::models::PatchChannelCommand;
 use std::collections::HashMap;
 
 use hippo_openapi::apis::account_api::{api_account_createtoken_post, api_account_post};
@@ -6,19 +7,15 @@ use hippo_openapi::apis::certificate_api::{
     api_certificate_get, api_certificate_id_delete, api_certificate_post,
 };
 use hippo_openapi::apis::channel_api::{
-    api_channel_channel_id_get, api_channel_get, api_channel_id_delete, api_channel_post,
+    api_channel_id_get, api_channel_get, api_channel_id_delete, api_channel_post, api_channel_id_patch,
 };
 use hippo_openapi::apis::configuration::{ApiKey, Configuration};
-use hippo_openapi::apis::environment_variable_api::{
-    api_environmentvariable_get, api_environmentvariable_id_delete, api_environmentvariable_post,
-};
 use hippo_openapi::apis::revision_api::{api_revision_get, api_revision_post};
 use hippo_openapi::apis::Error;
 use hippo_openapi::models::{
-    AppsVm, CertificatesVm, ChannelDto, ChannelRevisionSelectionStrategy, ChannelsVm,
-    CreateAccountCommand, CreateAppCommand, CreateCertificateCommand, CreateChannelCommand,
-    CreateEnvironmentVariableCommand, CreateTokenCommand, EnvironmentVariablesVm,
-    RegisterRevisionCommand, RevisionsVm, TokenInfo,
+    AppItemPage, CertificateItemPage, ChannelItem, ChannelRevisionSelectionStrategy, ChannelItemPage,
+    CreateAccountCommand, CreateAppCommand, CreateCertificateCommand, CreateChannelCommand, CreateTokenCommand, EnvironmentVariableItem,
+    RegisterRevisionCommand, RevisionItemPage, TokenInfo, UpdateEnvironmentVariableDtoListField, UpdateEnvironmentVariableDto
 };
 
 use reqwest::header;
@@ -50,10 +47,10 @@ impl Client {
                 env!("CARGO_PKG_VERSION")
             )),
             client: reqwest::Client::builder()
-                .danger_accept_invalid_certs(conn_info.danger_accept_invalid_certs)
-                .default_headers(headers)
-                .build()
-                .unwrap(),
+            .danger_accept_invalid_certs(conn_info.danger_accept_invalid_certs)
+            .default_headers(headers)
+            .build()
+            .unwrap(),
             basic_auth: None,
             oauth_access_token: None,
             bearer_access_token: None,
@@ -106,14 +103,14 @@ impl Client {
 
     pub async fn remove_app(&self, id: String) -> anyhow::Result<()> {
         api_app_id_delete(&self.configuration, &id)
-            .await
-            .map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 
-    pub async fn list_apps(&self) -> anyhow::Result<AppsVm> {
-        api_app_get(&self.configuration)
-            .await
-            .map_err(format_response_error)
+    pub async fn list_apps(&self) -> anyhow::Result<AppItemPage> {
+        api_app_get(&self.configuration, None, None, None, None, None)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn add_certificate(
@@ -134,16 +131,16 @@ impl Client {
         .map_err(format_response_error)
     }
 
-    pub async fn list_certificates(&self) -> anyhow::Result<CertificatesVm> {
-        api_certificate_get(&self.configuration)
-            .await
-            .map_err(format_response_error)
+    pub async fn list_certificates(&self) -> anyhow::Result<CertificateItemPage> {
+        api_certificate_get(&self.configuration, None, None, None, None, None)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn remove_certificate(&self, id: String) -> anyhow::Result<()> {
         api_certificate_id_delete(&self.configuration, &id)
-            .await
-            .map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn add_channel(
@@ -166,27 +163,27 @@ impl Client {
             certificate_id,
         };
         api_channel_post(&self.configuration, Some(command))
-            .await
-            .map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 
     #[allow(dead_code)]
-    pub async fn get_channel_by_id(&self, id: &str) -> anyhow::Result<ChannelDto> {
-        api_channel_channel_id_get(&self.configuration, id)
-            .await
-            .map_err(format_response_error)
+    pub async fn get_channel_by_id(&self, id: &str) -> anyhow::Result<ChannelItem> {
+        api_channel_id_get(&self.configuration, id)
+        .await
+        .map_err(format_response_error)
     }
 
-    pub async fn list_channels(&self) -> anyhow::Result<ChannelsVm> {
-        api_channel_get(&self.configuration)
-            .await
-            .map_err(format_response_error)
+    pub async fn list_channels(&self) -> anyhow::Result<ChannelItemPage> {
+        api_channel_get(&self.configuration, None, None, None, None, None)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn remove_channel(&self, id: String) -> anyhow::Result<()> {
         api_channel_id_delete(&self.configuration, &id)
-            .await
-            .map_err(format_response_error)
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn add_environment_variable(
@@ -194,29 +191,49 @@ impl Client {
         key: String,
         value: String,
         channel_id: String,
-    ) -> anyhow::Result<String> {
-        api_environmentvariable_post(
+    ) -> anyhow::Result<()> {
+        let mut environment_variables = self.get_channel_by_id(&channel_id).await?.environment_variables;
+        environment_variables.push(EnvironmentVariableItem{
+            // TODO: fix this in hippo 0.19 - shouldn't need to reference the channel ID
+            channel_id: channel_id.clone(),
+            key: key,
+            value: value
+        });
+        api_channel_id_patch(
             &self.configuration,
-            Some(CreateEnvironmentVariableCommand {
-                key: key,
-                value: value,
-                channel_id: channel_id,
-            }),
+            &channel_id,
+            Some(PatchChannelCommand {
+                // TODO: fix this in hippo 0.19 - this is a very ugly type cast that shouldn't exist
+                environment_variables: Some(Box::new(UpdateEnvironmentVariableDtoListField{value: Some(environment_variables.iter().map(|e| UpdateEnvironmentVariableDto{key: e.key.clone(), value: e.value.clone()}).collect())})),
+                ..Default::default()
+            })
         )
         .await
         .map_err(format_response_error)
     }
 
-    pub async fn list_environmentvariables(&self) -> anyhow::Result<EnvironmentVariablesVm> {
-        api_environmentvariable_get(&self.configuration)
-            .await
-            .map_err(format_response_error)
+    pub async fn list_environmentvariables(&self, channel_id: String) -> anyhow::Result<Vec<EnvironmentVariableItem>> {
+        let channel = api_channel_id_get(&self.configuration, &channel_id)
+        .await
+        .map_err(format_response_error)?;
+        Ok(channel.environment_variables)
     }
 
-    pub async fn remove_environment_variable(&self, id: String) -> anyhow::Result<()> {
-        api_environmentvariable_id_delete(&self.configuration, &id)
-            .await
-            .map_err(format_response_error)
+    pub async fn remove_environment_variable(&self, channel_id: String, key: String) -> anyhow::Result<()> {
+        let mut environment_variables = self.get_channel_by_id(&channel_id).await?.environment_variables;
+        let index = environment_variables.iter().position(|e| e.key == key).unwrap();
+        environment_variables.remove(index);
+        api_channel_id_patch(
+            &self.configuration,
+            &channel_id,
+            Some(PatchChannelCommand {
+                // TODO: fix this in hippo 0.19 - this is a very ugly type cast that shouldn't exist
+                environment_variables: Some(Box::new(UpdateEnvironmentVariableDtoListField{value: Some(environment_variables.iter().map(|e| UpdateEnvironmentVariableDto{key: e.key.clone(), value: e.value.clone()}).collect())})),
+                ..Default::default()
+            })
+        )
+        .await
+        .map_err(format_response_error)
     }
 
     pub async fn add_revision(
@@ -235,10 +252,10 @@ impl Client {
         .map_err(format_response_error)
     }
 
-    pub async fn list_revisions(&self) -> anyhow::Result<RevisionsVm> {
-        api_revision_get(&self.configuration)
-            .await
-            .map_err(format_response_error)
+    pub async fn list_revisions(&self) -> anyhow::Result<RevisionItemPage> {
+        api_revision_get(&self.configuration, None, None)
+        .await
+        .map_err(format_response_error)
     }
 }
 

@@ -18,13 +18,18 @@ pub(crate) enum Commands {
         channel_id: String,
     },
 
-    // List all environment variables
-    List { },
+    // List all environment variables bound to a channel
+    List {
+        /// The channel ID we want to lookup
+        channel_id: String,
+    },
 
     /// Remove an environment variable
     #[clap(alias ="delete")]
     #[clap(alias ="rm")]
     Remove {
+        /// The channel ID we want to remove this environment variable from
+        channel_id: String,
         /// The environment variable ID
         id: String,
     },

@@ -110,18 +110,18 @@ impl Cli {
                 let id = hippo_client
                     .add_app(name.to_owned(), storage_id.to_owned())
                     .await?;
-                println!("Added App {} (ID = '{}')", name, id);
+                println!("Added {} (ID = '{}')", name, id);
                 println!("IMPORTANT: save this App ID for later - you will need it to update and/or delete the App");
             }
 
             Commands::App(AppCommands::List { }) => {
                 let apps = hippo_client.list_apps().await?;
-                println!("{}", serde_json::to_string_pretty(&apps.apps)?);
+                println!("{}", serde_json::to_string_pretty(&apps.items)?);
             }
 
             Commands::App(AppCommands::Remove { id }) => {
                 hippo_client.remove_app(id.to_owned()).await?;
-                println!("Removed App {}", id);
+                println!("Removed {}", id);
             }
 
             Commands::Certificate(CertificateCommands::Add {
@@ -135,18 +135,18 @@ impl Cli {
                 let id = hippo_client
                     .add_certificate(name.to_owned(), public_key, private_key)
                     .await?;
-                println!("Added Certificate {} (ID = '{}')", name, id);
+                println!("Added {} (ID = '{}')", name, id);
                 println!("IMPORTANT: save this Certificate ID for later - you will need it to update and/or delete the Certificate");
             }
 
             Commands::Certificate(CertificateCommands::List { }) => {
                 let certificates = hippo_client.list_certificates().await?;
-                println!("{}", serde_json::to_string_pretty(&certificates.certificates)?);
+                println!("{}", serde_json::to_string_pretty(&certificates.items)?);
             }
 
             Commands::Certificate(CertificateCommands::Remove { id }) => {
                 hippo_client.remove_certificate(id.to_owned()).await?;
-                println!("Removed Certificate {}", id);
+                println!("Removed {}", id);
             }
 
             Commands::Channel(ChannelCommands::Add {
@@ -176,18 +176,18 @@ impl Cli {
                         certificate_id.to_owned(),
                     )
                     .await?;
-                println!("Added Channel {} (ID = '{}')", name, id);
+                println!("Added {} (ID = '{}')", name, id);
                 println!("IMPORTANT: save this Channel ID for later - you will need it to update and/or delete the Channel");
             }
 
             Commands::Channel(ChannelCommands::List { }) => {
                 let channels = hippo_client.list_channels().await?;
-                println!("{}", serde_json::to_string_pretty(&channels.channels)?);
+                println!("{}", serde_json::to_string_pretty(&channels.items)?);
             }
 
             Commands::Channel(ChannelCommands::Remove { id }) => {
                 hippo_client.remove_channel(id.to_owned()).await?;
-                println!("Removed Channel {}", id);
+                println!("Removed {}", id);
             }
 
             Commands::Env(EnvCommands::Add {
@@ -195,27 +195,31 @@ impl Cli {
                 value,
                 channel_id,
             }) => {
-                let id = hippo_client
+                hippo_client
                     .add_environment_variable(
                         key.to_owned(),
                         value.to_owned(),
                         channel_id.to_owned(),
                     )
                     .await?;
-                println!("Added Environment Variable {} (ID = '{}')", key, id);
-                println!("IMPORTANT: save this Environment Variable ID for later - you will need it to update and/or delete the Environment Variable");
+                println!("Added {}={}", key, value);
             }
 
-            Commands::Env(EnvCommands::List { }) => {
-                let envs = hippo_client.list_environmentvariables().await?;
-                println!("{}", serde_json::to_string_pretty(&envs.environment_variables)?);
+            Commands::Env(EnvCommands::List {
+                channel_id,
+            }) => {
+                let envs = hippo_client.list_environmentvariables(channel_id.to_owned()).await?;
+                println!("{}", serde_json::to_string_pretty(&envs)?);
             }
 
-            Commands::Env(EnvCommands::Remove { id }) => {
+            Commands::Env(EnvCommands::Remove {
+                channel_id,
+                id
+            }) => {
                 hippo_client
-                    .remove_environment_variable(id.to_owned())
+                    .remove_environment_variable(channel_id.to_owned(), id.to_owned())
                     .await?;
-                println!("Removed Environment Variable {}", id);
+                println!("Removed {}", id);
             }
 
             Commands::Login {
@@ -291,12 +295,12 @@ impl Cli {
                 hippo_client
                     .add_revision(app_storage_id.to_owned(), revision_number.to_owned())
                     .await?;
-                println!("Added Revision {}", revision_number);
+                println!("Added {}", revision_number);
             }
 
             Commands::Revision(RevisionCommands::List {}) => {
                 let revisions = hippo_client.list_revisions().await?;
-                println!("{}", serde_json::to_string_pretty(&revisions.revisions)?);
+                println!("{}", serde_json::to_string_pretty(&revisions.items)?);
             }
 
             Commands::Whoami {} => {

@@ -43,8 +43,12 @@ impl Client {
         headers.insert(header::ACCEPT, JSON_MIME_TYPE.parse().unwrap());
         headers.insert(header::CONTENT_TYPE, JSON_MIME_TYPE.parse().unwrap());
 
+        let base_path = match conn_info.url.strip_suffix("/") {
+            Some(s) => s.to_owned(),
+            None => conn_info.url
+        };
         let configuration = Configuration {
-            base_path: conn_info.url.clone(),
+            base_path: base_path,
             user_agent: Some(format!(
                 "{}/{}",
                 env!("CARGO_PKG_NAME"),
